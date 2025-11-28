@@ -426,7 +426,7 @@ generateBtn.addEventListener('click', async () => {
         alert(`⚠️ AI Usage Limit Reached!\n\nPlease wait ${waitTime} before trying again.`);
         return;
       }
-      throw new Error(result.error || 'Schedule generation failed');
+      throw new Error(result.details || result.error || 'Schedule generation failed');
     }
 
     console.log('Schedule:', result);

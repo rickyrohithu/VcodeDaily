@@ -186,8 +186,8 @@ app.post('/api/generate-schedule', async (req, res) => {
 
         // 2. Sort Topics based on User Order
         const sortedTopics = Object.keys(problemsByTopic).sort((a, b) => {
-            const orderA = (req.body.topicOrder && req.body.topicOrder[a]) || 999;
-            const orderB = (req.body.topicOrder && req.body.topicOrder[b]) || 999;
+            const orderA = (topicOrder && topicOrder[a]) || 999;
+            const orderB = (topicOrder && topicOrder[b]) || 999;
             return orderA - orderB;
         });
 
@@ -306,8 +306,9 @@ app.post('/api/generate-schedule', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error generating schedule:', error);
-        res.status(500).json({ error: 'Failed to generate schedule' });
+        console.error('❌ Error generating schedule:', error);
+        console.error('Stack:', error.stack);
+        res.status(500).json({ error: 'Failed to generate schedule', details: error.message });
     }
 });
 
