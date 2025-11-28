@@ -185,6 +185,26 @@ analyseBtn.addEventListener('click', async () => {
 
         console.log(`Parsed ${jsonData.length} rows locally.`);
 
+        // Helper to normalize topics locally
+        const normalizeTopic = (input) => {
+          if (!input) return "Uncategorized";
+          const lower = input.toString().toLowerCase();
+          if (lower.includes("array")) return "Arrays";
+          if (lower.includes("string")) return "Strings";
+          if (lower.includes("linked list")) return "Linked Lists";
+          if (lower.includes("stack")) return "Stacks";
+          if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
+          if (lower.includes("tree") || lower.includes("bst")) return "Trees";
+          if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
+          if (lower.includes("hash") || lower.includes("map")) return "Hashing";
+          if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
+          if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
+          if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
+          if (lower.includes("sort") || lower.includes("search")) return "Sorting & Searching";
+          if (lower.includes("greedy")) return "Greedy Algorithms";
+          return "Uncategorized";
+        };
+
         // Filter Rows (Client-Side)
         const rawProblems = [];
         jsonData.forEach(row => {
@@ -194,16 +214,34 @@ analyseBtn.addEventListener('click', async () => {
           const hasLink = row.some(val => val && val.toString().includes('http'));
           if (!hasLink) return;
 
-          const rowString = row.join(' ').toLowerCase();
-          if (rowString.includes('problem name') || rowString.length < 10) return;
-
           // Extract Data
           const name = row.find(v => v && v.toString().length < 100 && !v.toString().includes('http') && !v.toString().match(/^\d+$/)) || "Unknown";
           const link = row.find(v => v && v.toString().includes('http')) || "";
-          const potentialTopic = row.find(v => v && v.toString() !== name && v.toString() !== link && v.toString().length < 30 && !v.toString().match(/^(Easy|Medium|Hard)$/i) && !v.toString().match(/^\d+$/)) || "Uncategorized";
+
+          // Strict Topic Extraction
+          let potentialTopic = row.find(v =>
+            v &&
+            v.toString() !== name &&
+            v.toString() !== link &&
+            v.toString().length < 30 &&
+            !v.toString().match(/^(Easy|Medium|Hard)$/i) &&
+            !v.toString().match(/^\d+$/) &&
+            !v.toString().toLowerCase().includes('leetcode') && // Reject "LeetCode ..."
+            !v.toString().toLowerCase().includes('problem')
+          );
+
+          // Normalize immediately
+          let topic = normalizeTopic(potentialTopic);
+
+          // If Uncategorized, maybe the name implies the topic? (Simple heuristic)
+          if (topic === "Uncategorized") {
+            topic = normalizeTopic(name); // Try to guess from name
+            if (topic === "Uncategorized") topic = "Arrays"; // Default Fallback if AI fails
+          }
+
           const difficulty = row.find(v => v && v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Medium";
 
-          rawProblems.push({ name: name.trim(), link, topic: potentialTopic, difficulty, source: file.name });
+          rawProblems.push({ name: name.trim(), link, topic, difficulty, source: file.name });
         });
 
         if (rawProblems.length === 0) {
