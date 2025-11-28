@@ -298,10 +298,21 @@ analyseBtn.addEventListener('click', async () => {
         STANDARD_TOPICS.forEach(t => summary[t] = { easy: 0, medium: 0, hard: 0 });
 
         currentProblems.forEach(p => {
-          let topic = p.topic || "Arrays";
+          let topic = p.topic || "Uncategorized";
           // Double-check normalization
           topic = normalizeTopic(topic);
-          if (topic === "Uncategorized") topic = "Arrays"; // Final safety net
+
+          // If still Uncategorized, keep it as is so we can see it (or map to a 'Misc' if user prefers)
+          // But for now, let's see what the AI actually returned.
+
+          // Ensure topic exists in summary (if it's one of the 13, it will be. If not, add it dynamically?)
+          // The user wants ONLY the 13 topics.
+          // If it's Uncategorized, we have a problem. 
+          // Let's force it to "Arrays" ONLY if it's truly unknown, but at least we warned.
+          if (topic === "Uncategorized") {
+            console.warn("Problem remained Uncategorized:", p.name);
+            topic = "Arrays"; // Fallback for UI consistency, but at least we warned.
+          }
 
           if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
 
