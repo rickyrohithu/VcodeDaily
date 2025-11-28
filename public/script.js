@@ -233,10 +233,10 @@ analyseBtn.addEventListener('click', async () => {
           // Normalize immediately
           let topic = normalizeTopic(potentialTopic);
 
-          // If Uncategorized, maybe the name implies the topic? (Simple heuristic)
+          // If Uncategorized, try to guess from name, but DO NOT default to Arrays yet.
+          // Let Groq AI handle it on the backend.
           if (topic === "Uncategorized") {
-            topic = normalizeTopic(name); // Try to guess from name
-            if (topic === "Uncategorized") topic = "Arrays"; // Default Fallback if AI fails
+            topic = normalizeTopic(name);
           }
 
           const difficulty = row.find(v => v && v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Medium";
