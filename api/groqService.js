@@ -16,22 +16,43 @@ async function processWithGroq(rawData) {
     let cleanSource = file.filename.replace(/\.(csv|xlsx|xls)$/i, '').trim();
 
     file.content.forEach(row => {
-      // Row is array: ['Two Sum', 'http...', 'Easy']
+      // Row is array: ['Two Sum', 'http...', 'Easy', 'Arrays']
       // Find the name (longest string that isn't a URL)
       const name = row.find(v => v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/));
       const link = row.find(v => v.startsWith('http')) || '';
 
+      // Try to find a Topic (shorter string, not name, not link, not difficulty)
+      const potentialTopic = row.find(v =>
+        v !== name &&
+        v !== link &&
+        v.length < 30 &&
+        !v.match(/^(Easy|Medium|Hard)$/i) &&
+        !v.match(/^\d+$/)
+      );
+
+      // Try to find Difficulty
+      const difficulty = row.find(v => v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+
       if (name) {
         const cleanName = name.trim();
         if (!problemMap.has(cleanName)) {
-          problemMap.set(cleanName, { link, sources: new Set() });
+          problemMap.set(cleanName, {
+            link,
+            sources: new Set(),
+            topic: potentialTopic || "Uncategorized", // Use found topic
+            difficulty: difficulty
+          });
         }
-        // Add the clean source name to the set (automatically handles duplicates)
+        // Add the clean source name to the set
         problemMap.get(cleanName).sources.add(cleanSource);
 
-        // Update link if the current one is better (exists)
+        // Update link if better
         if (!problemMap.get(cleanName).link && link) {
           problemMap.get(cleanName).link = link;
+        }
+        // Update topic if we found one and previous was Uncategorized
+        if (potentialTopic && problemMap.get(cleanName).topic === "Uncategorized") {
+          problemMap.get(cleanName).topic = potentialTopic;
         }
       }
     });
@@ -42,67 +63,134 @@ async function processWithGroq(rawData) {
   // Limit to 400 unique problems for Free Tier
   const problemNames = uniqueProblems.slice(0, 400);
 
-  const systemPrompt = `
-    You are an expert DSA Study Planner.
-    I will give you a list of coding problem names.
-    
-    YOUR TASKS:
-    1. Identify the Topic (e.g., Arrays, DP, Graphs).
-    2. Identify the Difficulty (Easy, Medium, Hard).
-    3. Return a JSON object mapping names to their classification.
+  // STANDARD TOPICS LIST
+  const ALLOWED_TOPICS = [
+    "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
+    "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
+    "Dynamic Programming (DP)", "Recursion & Backtracking",
+    "Sorting & Searching", "Greedy Algorithms"
+  ];
 
-    OUTPUT FORMAT (JSON ONLY):
-    {
-      "summary": {
-        "Topic Name": { "easy": 0, "medium": 0, "hard": 0 }
-      },
-      "classifications": {
-        "Problem Name": { "topic": "Topic", "difficulty": "Easy" }
-      }
+  // Helper to map any string to a Standard Topic
+  const normalizeTopic = (input) => {
+    if (!input) return "Arrays"; // Default fallback
+    const lower = input.toLowerCase();
+
+    if (lower.includes("array")) return "Arrays";
+    if (lower.includes("string")) return "Strings";
+    if (lower.includes("linked list")) return "Linked Lists";
+    if (lower.includes("stack")) return "Stacks";
+    if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
+    if (lower.includes("tree") || lower.includes("bst")) return "Trees";
+    if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
+    if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
+    if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
+    if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
+    if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
+    if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
+    if (lower.includes("greedy")) return "Greedy Algorithms";
+
+    return "Arrays"; // Fallback for unknown
+  };
+
+  // BATCHED PROCESSING
+  const BATCH_SIZE = 25;
+  const chunks = [];
+  for (let i = 0; i < problemNames.length; i += BATCH_SIZE) {
+    chunks.push(problemNames.slice(i, i + BATCH_SIZE));
+  }
+
+  console.log(`Processing ${problemNames.length} problems in ${chunks.length} batches...`);
+
+  const processBatch = async (batchNames) => {
+    const systemPrompt = `
+        You are an expert DSA Study Planner.
+        Classify the given problems into EXACTLY one of these topics:
+        ${JSON.stringify(ALLOWED_TOPICS)}
+        
+        YOUR TASKS:
+        1. Identify the Topic from the list above.
+        2. Identify the Difficulty (Easy, Medium, Hard).
+        3. Return a JSON object.
+
+        OUTPUT FORMAT (JSON ONLY):
+        {
+          "classifications": {
+            "Problem Name": { "topic": "Topic", "difficulty": "Easy" }
+          }
+        }
+      `;
+
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Classify these problems:\n${JSON.stringify(batchNames)}` }
+        ],
+        model: 'llama-3.1-8b-instant',
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+      return JSON.parse(completion.choices[0].message.content).classifications;
+    } catch (e) {
+      console.error("Batch failed:", e.message);
+      return {};
     }
-  `;
+  };
 
   try {
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemNames)}` }
-      ],
-      model: 'llama-3.1-8b-instant',
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    });
+    // Run batches in parallel (Limit concurrency if needed, but Promise.all is fine for <50 batches)
+    const results = await Promise.all(chunks.map(chunk => processBatch(chunk)));
 
-    const result = JSON.parse(completion.choices[0].message.content);
+    // Merge Results
+    const mergedClassifications = {};
+    results.forEach(res => Object.assign(mergedClassifications, res));
 
     // Re-hydrate with merged sources
     const finalProblems = problemNames.map(name => {
       const data = problemMap.get(name);
-      const classification = result.classifications[name] || { topic: "Uncategorized", difficulty: "Medium" };
+      const aiClass = mergedClassifications[name] || {};
+
+      // Get Raw Topic (from AI or CSV)
+      let rawTopic = (aiClass.topic && aiClass.topic !== "Uncategorized") ? aiClass.topic : data.topic;
+
+      // NORMALIZE TOPIC to Standard List
+      const finalTopic = normalizeTopic(rawTopic);
+
+      // Prefer AI difficulty if valid, otherwise use CSV difficulty
+      const finalDiff = (aiClass.difficulty) ? aiClass.difficulty : data.difficulty;
 
       return {
         name: name,
         link: data.link,
-        source: Array.from(data.sources).join(', '), // Merges sources: "s1, s2"
-        topic: classification.topic,
-        difficulty: classification.difficulty
+        source: Array.from(data.sources).join(', '),
+        topic: finalTopic,
+        difficulty: finalDiff
       };
     });
 
+    // Recalculate Summary based on Normalized Topics
+    const summary = {};
+    finalProblems.forEach(p => {
+      if (!summary[p.topic]) summary[p.topic] = { easy: 0, medium: 0, hard: 0 };
+      const diff = p.difficulty.toLowerCase();
+      if (summary[p.topic][diff] !== undefined) summary[p.topic][diff]++;
+    });
+
     return {
-      summary: result.summary,
+      summary: summary,
       problems: finalProblems
     };
 
   } catch (error) {
-    console.error('Groq API Error:', error.message);
+    console.error('❌ Groq API Error:', error);
+    console.error('Stack:', error.stack);
 
-    // Fallback Mock Data
+    // Fallback Mock Data (Normalized)
     return {
       summary: {
-        "Arrays & Hashing": { easy: 5, medium: 8, hard: 2 },
-        "Two Pointers": { easy: 3, medium: 5, hard: 1 },
-        "Dynamic Programming": { easy: 2, medium: 12, hard: 5 }
+        "Arrays": { easy: 5, medium: 8, hard: 2 },
+        "Dynamic Programming (DP)": { easy: 2, medium: 12, hard: 5 }
       },
       problems: [],
       message: "Generated via Mock Fallback (Groq API failed)"

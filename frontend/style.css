@@ -529,6 +529,7 @@ a:hover {
   align-items: center;
   flex-shrink: 0;
   /* Don't shrink */
+  margin-right: 10px;
 }
 
 .problem-info {

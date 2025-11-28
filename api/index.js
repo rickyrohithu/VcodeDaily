@@ -34,7 +34,26 @@ const parseCSV = (buffer) => {
                 // 'data' is now an object with numeric keys: { '0': 'Val1', '1': 'Val2' }
                 // Convert to array of values
                 const row = Object.values(data).filter(val => val && val.trim() !== '');
-                if (row.length > 0) results.push(row);
+
+                // Filter out empty rows
+                if (row.length === 0) return;
+
+                // Filter out Header Rows & Garbage
+                const rowString = row.join(' ').toLowerCase();
+                const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+
+                if (!hasLink) {
+                    // If there's no link, it's likely a header or a topic separator, NOT a problem.
+                    return;
+                }
+
+                if (rowString.includes('problem name') ||
+                    rowString.includes('problem link') ||
+                    rowString.length < 10) {
+                    return;
+                }
+
+                results.push(row);
             })
             .on('end', () => resolve(results))
             .on('error', (err) => reject(err));
@@ -94,97 +113,108 @@ app.post('/api/generate-schedule', async (req, res) => {
             return res.json({ message: 'No problems provided, returned mock.', schedule: mockSchedule });
         }
 
-        // 1. Prepare Prompt for Groq
-        // We need to send the problems list and the days constraints
-        // Since we don't have the full problems list in the request body (we sent empty array in frontend script),
-        // we need to fix the frontend to send the problems too.
-        // BUT for now, let's assume 'problems' is passed or we fetch it.
+        // ALGORITHMIC SCHEDULE GENERATION (Weighted "Equal Hardwork" Distribution)
+        // Logic: Hard=4pts, Medium=2pts, Easy=1pt.
+        // Goal: Balance points per day.
 
-        // WAIT: The frontend script currently sends `problems: []`.
-        // We need to fix the frontend first to pass the analyzed problems.
-        // However, I will write the backend logic assuming `problems` contains the data.
+        let finalSchedule = [];
+        let currentDayOffset = 0;
 
-        const systemPrompt = `
-      You are an expert Study Planner.
-      I will provide:
-      1. A list of problems (Name, Difficulty, Source).
-      2. A configuration of "Days per Topic".
+        // 1. Group problems by Topic
+        const problemsByTopic = {};
+        problems.forEach(p => {
+            const topic = p.topic || "Uncategorized";
+            if (!problemsByTopic[topic]) problemsByTopic[topic] = [];
+            problemsByTopic[topic].push(p);
+        });
 
-      YOUR TASK:
-      Create a day-by-day schedule.
-      - Distribute problems across the specified days for each topic.
-      - Mix difficulties if possible (e.g. 1 Easy, 1 Medium).
-      - Ensure NO duplicates.
+        // 2. Sort Topics based on User Order
+        const sortedTopics = Object.keys(problemsByTopic).sort((a, b) => {
+            const orderA = (req.body.topicOrder && req.body.topicOrder[a]) || 999;
+            const orderB = (req.body.topicOrder && req.body.topicOrder[b]) || 999;
+            return orderA - orderB;
+        });
 
-      OUTPUT JSON FORMAT:
-      {
-        "schedule": [
-          {
-            "day": 1,
-            "topic": "Topic Name",
-            "problems": [
-              { "name": "Problem Name", "source": "Source", "difficulty": "Easy" }
-            ]
-          }
-        ]
-      }
-    `;
+        // 3. Distribute per Topic
+        for (const topic of sortedTopics) {
+            const topicProblems = problemsByTopic[topic];
+            const daysAllocated = topicDays[topic] || 3;
 
-        // Limit problems to 400 to stay within free tier TPM limits (approx 6k tokens)
-        // Optimization: Send ONLY names to save tokens.
-        const problemsSample = problems.slice(0, 400);
-        const problemNames = problemsSample.map(p => p.name);
-
-        console.log(`Sending ${problemNames.length} problem names to Groq (Token Optimized)...`);
-
-        const userPrompt = `
-      Topic Configuration: ${JSON.stringify(topicDays)}
-      Available Problems: ${JSON.stringify(problemNames)}
-    `;
-
-        let finalSchedule;
-        try {
-            // Call Groq
-            const Groq = require('groq-sdk');
-            const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-            const completion = await groq.chat.completions.create({
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                model: 'llama-3.1-8b-instant',
-                temperature: 0.2,
-                response_format: { type: 'json_object' }
+            // Sort problems by difficulty (Hard -> Medium -> Easy) to distribute heavy ones first
+            const difficultyWeight = { "Hard": 4, "Medium": 2, "Easy": 1 };
+            topicProblems.sort((a, b) => {
+                const wA = difficultyWeight[a.difficulty] || 2;
+                const wB = difficultyWeight[b.difficulty] || 2;
+                return wB - wA; // Descending order
             });
 
-            const result = JSON.parse(completion.choices[0].message.content);
+            // Calculate Total Points
+            const totalPoints = topicProblems.reduce((sum, p) => sum + (difficultyWeight[p.difficulty] || 2), 0);
+            const targetPointsPerDay = Math.ceil(totalPoints / daysAllocated);
 
-            // Re-hydrate the schedule with full problem details
-            // The AI returns objects with just names or partial info. We need to merge back the source/link/diff.
-            finalSchedule = result.schedule.map(day => ({
-                ...day,
-                problems: day.problems.map(aiProb => {
-                    // Find original problem by name (fuzzy match or exact)
-                    const original = problems.find(p => p.name === aiProb.name) ||
-                        problems.find(p => p.name.includes(aiProb.name)) ||
-                        { name: aiProb.name, source: "Unknown", difficulty: "Medium", link: "" };
+            let pIndex = 0;
+            for (let i = 0; i < daysAllocated; i++) {
+                const dayProblems = [];
+                let currentDayPoints = 0;
 
-                    return {
-                        name: original.name,
-                        source: original.source,
-                        difficulty: original.difficulty,
-                        link: original.link || ""
-                    };
-                })
-            }));
+                // Fill day until target points reached (or run out of problems)
+                // We allow slightly going over target to ensure we don't leave stragglers, 
+                // but we stop if we are close enough.
+                while (pIndex < topicProblems.length) {
+                    const p = topicProblems[pIndex];
+                    const pPoints = difficultyWeight[p.difficulty] || 2;
 
-            console.log('Groq generated schedule successfully.');
+                    // If adding this problem exceeds target significantly, and we already have something, stop.
+                    // Exception: If it's the last day, take everything.
+                    if (i < daysAllocated - 1 && currentDayPoints + pPoints > targetPointsPerDay + 2 && dayProblems.length > 0) {
+                        break;
+                    }
 
-        } catch (groqError) {
-            console.error('Groq Schedule Generation Failed:', groqError.message);
-            return res.status(500).json({ error: 'Failed to generate schedule via AI', details: groqError.message });
+                    dayProblems.push({
+                        name: p.name,
+                        source: p.source,
+                        difficulty: p.difficulty,
+                        link: p.link || "",
+                        completed: false
+                    });
+                    currentDayPoints += pPoints;
+                    pIndex++;
+
+                    // If we met or exceeded target, stop for this day
+                    if (currentDayPoints >= targetPointsPerDay) break;
+                }
+
+                if (dayProblems.length > 0) {
+                    finalSchedule.push({
+                        day: currentDayOffset + i + 1,
+                        topic: topic,
+                        problems: dayProblems
+                    });
+                }
+            }
+
+            // If any problems remain (due to math rounding), add them to the last day of this topic
+            if (pIndex < topicProblems.length) {
+                const lastDay = finalSchedule[finalSchedule.length - 1];
+                if (lastDay && lastDay.topic === topic) {
+                    while (pIndex < topicProblems.length) {
+                        const p = topicProblems[pIndex];
+                        lastDay.problems.push({
+                            name: p.name,
+                            source: p.source,
+                            difficulty: p.difficulty,
+                            link: p.link || "",
+                            completed: false
+                        });
+                        pIndex++;
+                    }
+                }
+            }
+
+            currentDayOffset += daysAllocated;
         }
+
+        console.log(`Generated ${finalSchedule.length} days of weighted schedule.`);
         // Save to Supabase
         // Note: We need userEmail. For now, we'll use a placeholder if not provided,
         // but ideally the frontend sends the logged-in user's email.

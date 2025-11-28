@@ -216,9 +216,15 @@ analyseBtn.addEventListener('click', async () => {
               <span class="stat-badge" style="color:#f87171">H: ${counts.hard || 0}</span>
             </div>
           </div>
-          <div class="days-input-group">
-            <label>Days to study:</label>
-            <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
+          <div class="days-input-group" style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Days:</label>
+              <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
+            </div>
+            <div style="flex: 1;">
+              <label>Order:</label>
+              <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
+            </div>
           </div>
         `;
         topicGrid.appendChild(card);
@@ -248,10 +254,17 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.textContent = 'Generating...';
   generateBtn.disabled = true;
 
-  // Collect days per topic
+  // Collect days and order per topic
   const topicDays = {};
+  const topicOrder = {};
+
   document.querySelectorAll('.topic-days-input').forEach(input => {
     topicDays[input.dataset.topic] = parseInt(input.value) || 3;
+  });
+
+  document.querySelectorAll('.topic-order-input').forEach(input => {
+    // Default to 999 if no order specified (put at end)
+    topicOrder[input.dataset.topic] = parseInt(input.value) || 999;
   });
 
   // Get logged in user email
@@ -263,8 +276,9 @@ generateBtn.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topicDays,
+        topicOrder, // Send the order
         problems: currentProblems,
-        userEmail: userEmail // Send real email
+        userEmail: userEmail
       })
     });
 
