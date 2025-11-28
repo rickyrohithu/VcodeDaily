@@ -5,6 +5,36 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || 'gsk_placeholder_key'
 });
 
+// STANDARD TOPICS LIST
+const ALLOWED_TOPICS = [
+  "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
+  "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
+  "Dynamic Programming (DP)", "Recursion & Backtracking",
+  "Sorting & Searching", "Greedy Algorithms"
+];
+
+// Helper to map any string to a Standard Topic
+const normalizeTopic = (input) => {
+  if (!input) return "Arrays"; // Default fallback
+  const lower = input.toLowerCase();
+
+  if (lower.includes("array")) return "Arrays";
+  if (lower.includes("string")) return "Strings";
+  if (lower.includes("linked list")) return "Linked Lists";
+  if (lower.includes("stack")) return "Stacks";
+  if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
+  if (lower.includes("tree") || lower.includes("bst")) return "Trees";
+  if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
+  if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
+  if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
+  if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
+  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
+  if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
+  if (lower.includes("greedy")) return "Greedy Algorithms";
+
+  return "Arrays"; // Fallback for unknown
+};
+
 async function processWithGroq(rawData) {
   // 1. Pre-process data to save tokens
   // We extract only the relevant columns (Problem Name, Link) from the CSVs
@@ -62,36 +92,6 @@ async function processWithGroq(rawData) {
 
   // Limit to 400 unique problems for Free Tier
   const problemNames = uniqueProblems.slice(0, 400);
-
-  // STANDARD TOPICS LIST
-  const ALLOWED_TOPICS = [
-    "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
-    "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
-    "Dynamic Programming (DP)", "Recursion & Backtracking",
-    "Sorting & Searching", "Greedy Algorithms"
-  ];
-
-  // Helper to map any string to a Standard Topic
-  const normalizeTopic = (input) => {
-    if (!input) return "Arrays"; // Default fallback
-    const lower = input.toLowerCase();
-
-    if (lower.includes("array")) return "Arrays";
-    if (lower.includes("string")) return "Strings";
-    if (lower.includes("linked list")) return "Linked Lists";
-    if (lower.includes("stack")) return "Stacks";
-    if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
-    if (lower.includes("tree") || lower.includes("bst")) return "Trees";
-    if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
-    if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
-    if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
-    if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
-    if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
-    if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
-    if (lower.includes("greedy")) return "Greedy Algorithms";
-
-    return "Arrays"; // Fallback for unknown
-  };
 
   // BATCHED PROCESSING
   const BATCH_SIZE = 25;
@@ -200,7 +200,8 @@ async function processWithGroq(rawData) {
 
 // NEW: Process a small batch of problems (called by frontend loop)
 async function processBatchWithGroq(problems) {
-  const problemNames = problems.map(p => p.name);
+  // Use Index as ID to ensure perfect mapping back
+  const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
 
   const systemPrompt = `
     You are an expert DSA Study Planner.
@@ -208,14 +209,16 @@ async function processBatchWithGroq(problems) {
     ${JSON.stringify(ALLOWED_TOPICS)}
     
     YOUR TASKS:
-    1. Identify the Topic from the list above.
-    2. Identify the Difficulty (Easy, Medium, Hard).
-    3. Return a JSON object.
+    1. Analyze each problem using its Name and Link.
+    2. Identify the Topic from the list above.
+    3. Identify the Difficulty (Easy, Medium, Hard).
+    4. Return a JSON object where keys are the IDs provided.
 
     OUTPUT FORMAT (JSON ONLY):
     {
       "classifications": {
-        "Problem Name": { "topic": "Topic", "difficulty": "Easy" }
+        "0": { "topic": "Topic", "difficulty": "Easy" },
+        "1": { "topic": "Topic", "difficulty": "Medium" }
       }
     }
   `;
@@ -224,7 +227,7 @@ async function processBatchWithGroq(problems) {
     const completion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemNames)}` }
+        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
       model: 'llama-3.1-8b-instant',
       temperature: 0.1,
@@ -234,11 +237,13 @@ async function processBatchWithGroq(problems) {
     const result = JSON.parse(completion.choices[0].message.content);
     const classifications = result.classifications || {};
 
-    // Merge AI results with original data
-    return problems.map(p => {
-      const aiClass = classifications[p.name] || {};
+    // Merge AI results with original data using Index
+    return problems.map((p, index) => {
+      const aiClass = classifications[index.toString()] || {};
+
       let rawTopic = (aiClass.topic && aiClass.topic !== "Uncategorized") ? aiClass.topic : p.topic;
       const finalTopic = normalizeTopic(rawTopic);
+
       const finalDiff = (aiClass.difficulty) ? aiClass.difficulty : p.difficulty;
 
       return {
