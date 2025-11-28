@@ -161,127 +161,155 @@ function handleUpload() {
 }
 uploadBtn.addEventListener('click', handleUpload);
 
-// Analyse Sheets (Client-Side Batching)
+// Analyse Sheets (Client-Side Parsing & Batching)
 analyseBtn.addEventListener('click', async () => {
   if (!selectedFiles || selectedFiles.length === 0) {
-    alert('Please upload a CSV file first.');
+    alert('Please upload a CSV/Excel file first.');
     return;
   }
 
-  analyseBtn.textContent = 'Parsing CSV...';
+  analyseBtn.textContent = 'Reading File...';
   analyseBtn.disabled = true;
 
   try {
-    // 1. Parse CSV (Fast)
-    const formData = new FormData();
-    formData.append('file', selectedFiles[0]);
+    const file = selectedFiles[0];
+    const reader = new FileReader();
 
-    const parseResponse = await fetch('/api/parse-csv', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!parseResponse.ok) {
-      const errorData = await parseResponse.json();
-      throw new Error(errorData.details || errorData.error || 'Failed to parse CSV');
-    }
-    const parseResult = await parseResponse.json();
-    const rawProblems = parseResult.problems;
-
-    if (!rawProblems || rawProblems.length === 0) {
-      throw new Error('No valid problems found in CSV.');
-    }
-
-    console.log(`Parsed ${rawProblems.length} problems. Starting Batch Analysis...`);
-    analyseBtn.textContent = `Analyzing 0/${rawProblems.length}...`;
-
-    // 2. Batch Analysis (Loop)
-    const BATCH_SIZE = 20;
-    let analyzedProblems = [];
-
-    for (let i = 0; i < rawProblems.length; i += BATCH_SIZE) {
-      const chunk = rawProblems.slice(i, i + BATCH_SIZE);
-
+    reader.onload = async (e) => {
       try {
-        const batchResponse = await fetch('/api/analyze-batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ problems: chunk })
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Array of arrays
+
+        console.log(`Parsed ${jsonData.length} rows locally.`);
+
+        // Filter Rows (Client-Side)
+        const rawProblems = [];
+        jsonData.forEach(row => {
+          if (!row || row.length === 0) return;
+
+          // Check for Link
+          const hasLink = row.some(val => val && val.toString().includes('http'));
+          if (!hasLink) return;
+
+          const rowString = row.join(' ').toLowerCase();
+          if (rowString.includes('problem name') || rowString.length < 10) return;
+
+          // Extract Data
+          const name = row.find(v => v && v.toString().length < 100 && !v.toString().includes('http') && !v.toString().match(/^\d+$/)) || "Unknown";
+          const link = row.find(v => v && v.toString().includes('http')) || "";
+          const potentialTopic = row.find(v => v && v.toString() !== name && v.toString() !== link && v.toString().length < 30 && !v.toString().match(/^(Easy|Medium|Hard)$/i) && !v.toString().match(/^\d+$/)) || "Uncategorized";
+          const difficulty = row.find(v => v && v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+
+          rawProblems.push({ name: name.trim(), link, topic: potentialTopic, difficulty, source: file.name });
         });
 
-        if (batchResponse.ok) {
-          const batchResult = await batchResponse.json();
-          analyzedProblems = analyzedProblems.concat(batchResult.problems);
-        } else {
-          console.error('Batch failed, using raw data for this chunk');
-          analyzedProblems = analyzedProblems.concat(chunk); // Fallback
+        if (rawProblems.length === 0) {
+          throw new Error('No valid problems found. Ensure your sheet has links (http/https).');
         }
 
-      } catch (e) {
-        console.error('Batch network error', e);
-        analyzedProblems = analyzedProblems.concat(chunk);
+        console.log(`Extracted ${rawProblems.length} valid problems. Starting Batch Analysis...`);
+        analyseBtn.textContent = `Analyzing 0/${rawProblems.length}...`;
+
+        // 2. Batch Analysis (Loop)
+        const BATCH_SIZE = 20;
+        let analyzedProblems = [];
+
+        for (let i = 0; i < rawProblems.length; i += BATCH_SIZE) {
+          const chunk = rawProblems.slice(i, i + BATCH_SIZE);
+
+          try {
+            const batchResponse = await fetch('/api/analyze-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ problems: chunk })
+            });
+
+            if (batchResponse.ok) {
+              const batchResult = await batchResponse.json();
+              analyzedProblems = analyzedProblems.concat(batchResult.problems);
+            } else {
+              console.error('Batch failed, using raw data for this chunk');
+              analyizedProblems = analyzedProblems.concat(chunk); // Fallback
+            }
+
+          } catch (e) {
+            console.error('Batch network error', e);
+            analyzedProblems = analyzedProblems.concat(chunk);
+          }
+
+          // Update Progress
+          analyseBtn.textContent = `Analyzing ${Math.min(i + BATCH_SIZE, rawProblems.length)}/${rawProblems.length}...`;
+        }
+
+        currentProblems = analyzedProblems;
+        console.log('Analysis Complete:', currentProblems);
+
+        // 3. Calculate Summary & Render
+        const summary = {};
+        currentProblems.forEach(p => {
+          const topic = p.topic || "Uncategorized";
+          if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
+          const diff = (p.difficulty || "Medium").toLowerCase();
+          if (summary[topic][diff] !== undefined) summary[topic][diff]++;
+        });
+
+        // Render Dashboard
+        const topicGrid = document.querySelector('.topic-grid');
+        topicGrid.innerHTML = ''; // Clear previous
+
+        Object.keys(summary).forEach(topic => {
+          const counts = summary[topic];
+          const total = counts.easy + counts.medium + counts.hard;
+
+          const card = document.createElement('div');
+          card.className = 'topic-card';
+          card.innerHTML = `
+            <h3>${topic}</h3>
+            <div class="topic-stats">
+              <div class="stat-item">
+                <span class="stat-value">${total}</span>
+                <span class="stat-label">Problems</span>
+              </div>
+              <div class="difficulty-breakdown">
+                <span class="stat-badge" style="color:#34d399">E: ${counts.easy}</span>
+                <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium}</span>
+                <span class="stat-badge" style="color:#f87171">H: ${counts.hard}</span>
+              </div>
+            </div>
+            <div class="days-input-group" style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                  <label>Days:</label>
+                  <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
+                </div>
+                <div style="flex: 1;">
+                  <label>Order:</label>
+                  <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
+                </div>
+            </div>
+          `;
+          topicGrid.appendChild(card);
+        });
+
+        document.getElementById('resultsSection').style.display = 'block';
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (parseError) {
+        console.error('Client-side parsing error:', parseError);
+        alert('Failed to read file: ' + parseError.message);
+      } finally {
+        analyseBtn.textContent = 'Analyse Sheets';
+        analyseBtn.disabled = false;
       }
+    };
 
-      // Update Progress
-      analyseBtn.textContent = `Analyzing ${Math.min(i + BATCH_SIZE, rawProblems.length)}/${rawProblems.length}...`;
-    }
-
-    currentProblems = analyzedProblems;
-    console.log('Analysis Complete:', currentProblems);
-
-    // 3. Calculate Summary & Render
-    const summary = {};
-    currentProblems.forEach(p => {
-      const topic = p.topic || "Uncategorized";
-      if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
-      const diff = (p.difficulty || "Medium").toLowerCase();
-      if (summary[topic][diff] !== undefined) summary[topic][diff]++;
-    });
-
-    // Render Dashboard
-    const topicGrid = document.querySelector('.topic-grid');
-    topicGrid.innerHTML = ''; // Clear previous
-
-    Object.keys(summary).forEach(topic => {
-      const counts = summary[topic];
-      const total = counts.easy + counts.medium + counts.hard;
-
-      const card = document.createElement('div');
-      card.className = 'topic-card';
-      card.innerHTML = `
-        <h3>${topic}</h3>
-        <div class="topic-stats">
-          <div class="stat-item">
-            <span class="stat-value">${total}</span>
-            <span class="stat-label">Problems</span>
-          </div>
-          <div class="difficulty-breakdown">
-            <span class="stat-badge" style="color:#34d399">E: ${counts.easy}</span>
-            <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium}</span>
-            <span class="stat-badge" style="color:#f87171">H: ${counts.hard}</span>
-          </div>
-        </div>
-        <div class="days-input-group" style="display: flex; gap: 10px;">
-            <div style="flex: 1;">
-              <label>Days:</label>
-              <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
-            </div>
-            <div style="flex: 1;">
-              <label>Order:</label>
-              <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
-            </div>
-        </div>
-      `;
-      topicGrid.appendChild(card);
-    });
-
-    document.getElementById('resultsSection').style.display = 'block';
-    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    reader.readAsArrayBuffer(file);
 
   } catch (error) {
     console.error('Error:', error);
     alert('An error occurred: ' + error.message);
-  } finally {
     analyseBtn.textContent = 'Analyse Sheets';
     analyseBtn.disabled = false;
   }
