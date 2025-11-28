@@ -163,9 +163,8 @@ uploadBtn.addEventListener('click', handleUpload);
 
 // Analyse Sheets (Client-Side Batching)
 analyseBtn.addEventListener('click', async () => {
-  const fileInput = document.getElementById('sheetInput');
-  if (!fileInput.files.length) {
-    alert('Please select a file first.');
+  if (!selectedFiles || selectedFiles.length === 0) {
+    alert('Please upload a CSV file first.');
     return;
   }
 
@@ -175,7 +174,7 @@ analyseBtn.addEventListener('click', async () => {
   try {
     // 1. Parse CSV (Fast)
     const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
+    formData.append('file', selectedFiles[0]);
 
     const parseResponse = await fetch('/api/parse-csv', {
       method: 'POST',
