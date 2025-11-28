@@ -210,14 +210,16 @@ async function processBatchWithGroq(problems) {
     
     YOUR TASKS:
     1. Analyze each problem using its Name and Link.
+    2. Identify the Topic from the list above.
     3. Identify the Difficulty (Easy, Medium, Hard). Use your knowledge of LeetCode problems. Do NOT default to Medium; guess Easy or Hard if appropriate.
-    4. Return a JSON object where keys are the IDs provided.
+    4. Provide the LeetCode URL if the original link is missing or invalid.
+    5. Return a JSON object where keys are the IDs provided.
 
     OUTPUT FORMAT (JSON ONLY):
     {
       "classifications": {
-        "0": { "topic": "Topic", "difficulty": "Easy" },
-        "1": { "topic": "Topic", "difficulty": "Medium" }
+        "0": { "topic": "Topic", "difficulty": "Easy", "link": "https://leetcode.com/problems/..." },
+        "1": { "topic": "Topic", "difficulty": "Medium", "link": "..." }
       }
     }
   `;
@@ -246,10 +248,14 @@ async function processBatchWithGroq(problems) {
 
       const finalDiff = (aiClass.difficulty) ? aiClass.difficulty : p.difficulty;
 
+      // Use AI link if original is missing
+      const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
+
       return {
         ...p,
         topic: finalTopic,
-        difficulty: finalDiff
+        difficulty: finalDiff,
+        link: finalLink
       };
     });
 
