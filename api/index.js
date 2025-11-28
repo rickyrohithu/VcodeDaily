@@ -25,30 +25,55 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const results = [];
-        const stream = require('stream');
-        const bufferStream = new stream.PassThrough();
-        bufferStream.end(req.file.buffer);
+        let results = [];
+        const filename = req.file.originalname.toLowerCase();
 
-        await new Promise((resolve, reject) => {
-            bufferStream
-                .pipe(csv({ headers: false }))
-                .on('data', (data) => {
-                    const row = Object.values(data).filter(val => val && val.trim() !== '');
-                    if (row.length === 0) return;
+        if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+            // Parse Excel
+            const XLSX = require('xlsx');
+            const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Array of arrays
 
-                    // Filter out Header Rows & Garbage
-                    const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
-                    if (!hasLink) return;
+            jsonData.forEach(row => {
+                if (!row || row.length === 0) return;
 
-                    const rowString = row.join(' ').toLowerCase();
-                    if (rowString.includes('problem name') || rowString.length < 10) return;
+                // Filter out Header Rows & Garbage
+                const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+                if (!hasLink) return;
 
-                    results.push(row);
-                })
-                .on('end', () => resolve(results))
-                .on('error', (err) => reject(err));
-        });
+                const rowString = row.join(' ').toLowerCase();
+                if (rowString.includes('problem name') || rowString.length < 10) return;
+
+                results.push(row);
+            });
+
+        } else {
+            // Parse CSV
+            const stream = require('stream');
+            const bufferStream = new stream.PassThrough();
+            bufferStream.end(req.file.buffer);
+
+            await new Promise((resolve, reject) => {
+                bufferStream
+                    .pipe(csv({ headers: false }))
+                    .on('data', (data) => {
+                        const row = Object.values(data).filter(val => val && val.trim() !== '');
+                        if (row.length === 0) return;
+
+                        const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+                        if (!hasLink) return;
+
+                        const rowString = row.join(' ').toLowerCase();
+                        if (rowString.includes('problem name') || rowString.length < 10) return;
+
+                        results.push(row);
+                    })
+                    .on('end', () => resolve(results))
+                    .on('error', (err) => reject(err));
+            });
+        }
 
         // Convert raw rows to initial problem objects
         const rawProblems = results.map(row => {
