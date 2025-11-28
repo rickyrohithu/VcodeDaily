@@ -210,8 +210,7 @@ async function processBatchWithGroq(problems) {
     
     YOUR TASKS:
     1. Analyze each problem using its Name and Link.
-    2. Identify the Topic from the list above.
-    3. Identify the Difficulty (Easy, Medium, Hard). ESTIMATE based on problem name if unknown.
+    3. Identify the Difficulty (Easy, Medium, Hard). Use your knowledge of LeetCode problems. Do NOT default to Medium; guess Easy or Hard if appropriate.
     4. Return a JSON object where keys are the IDs provided.
 
     OUTPUT FORMAT (JSON ONLY):
@@ -229,7 +228,7 @@ async function processBatchWithGroq(problems) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile', // Smarter model
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
