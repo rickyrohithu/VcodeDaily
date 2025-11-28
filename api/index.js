@@ -374,5 +374,17 @@ app.post('/api/update-progress', async (req, res) => {
     }
 });
 
+// Health Check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', env: { supabase: !!supabase } });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('🔥 Global Error:', err);
+    console.error('Stack:', err.stack);
+    res.status(500).json({ error: 'Internal Server Error', details: err.message });
+});
+
 // Export for Vercel Serverless
 module.exports = app;
