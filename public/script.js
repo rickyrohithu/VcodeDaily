@@ -4,9 +4,6 @@ const MAX_SHEETS = 10;
 const API_URL = '/api/upload';
 
 const sheetInputsDiv = document.getElementById('sheetInputs');
-const addSheetBtn = document.getElementById('addSheetBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const uploadBtn = document.getElementById('uploadBtn');
 const analyseBtn = document.getElementById('analyseBtn');
 
 let sheetCount = 0;
@@ -162,6 +159,7 @@ function handleUpload() {
 uploadBtn.addEventListener('click', handleUpload);
 
 // Analyse Sheet (URL Based)
+// Analyse Sheet (URL Based)
 analyseBtn.addEventListener('click', async () => {
   const sheetUrl = document.getElementById('sheetUrl').value.trim();
   if (!sheetUrl) {
@@ -173,169 +171,168 @@ analyseBtn.addEventListener('click', async () => {
   analyseBtn.disabled = true;
 
   try {
-    const file = selectedFiles[0];
-    const reader = new FileReader();
+    // 1. Fetch CSV content via Backend Proxy
+    const response = await fetch('/api/proxy-sheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: sheetUrl })
+    });
 
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Array of arrays
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Failed to fetch sheet');
 
-        console.log(`Parsed ${jsonData.length} rows locally.`);
+    // 2. Parse CSV (Client-Side)
+    // Result.data is base64 encoded string
+    const workbook = XLSX.read(result.data, { type: 'base64' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Array of Arrays
 
-        // Helper to normalize topics locally
-        const normalizeTopic = (input) => {
-          if (!input) return "Uncategorized";
-          const lower = input.toString().toLowerCase();
-          if (lower.includes("array")) return "Arrays";
-          if (lower.includes("string")) return "Strings";
-          if (lower.includes("linked list")) return "Linked Lists";
-          if (lower.includes("stack")) return "Stacks";
-          if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
-          if (lower.includes("tree") || lower.includes("bst")) return "Trees";
-          if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
-          if (lower.includes("hash") || lower.includes("map")) return "Hashing";
-          if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
-          if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
-          if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
-          if (lower.includes("sort") || lower.includes("search")) return "Sorting & Searching";
-          if (lower.includes("greedy")) return "Greedy Algorithms";
-          return "Uncategorized";
-        };
+    console.log(`Parsed ${jsonData.length} rows from URL.`);
 
-        // Filter Rows (Client-Side)
-        const rawProblems = [];
-        jsonData.forEach(row => {
-          if (!row || row.length === 0) return;
+    // Helper to normalize topics locally
+    const normalizeTopic = (input) => {
+      if (!input) return "Uncategorized";
+      const lower = input.toString().toLowerCase();
 
-          // Check for Link
-          const hasLink = row.some(val => val && val.toString().includes('http'));
-          if (!hasLink) return;
+      // Priority Mappings
+      if (lower.includes("dp") || lower.includes("dynamic")) return "Dynamic Programming (DP)";
+      if (lower.includes("tree") || lower.includes("bst") || lower.includes("trie")) return "Trees";
+      if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs") || lower.includes("union find")) return "Graphs";
+      if (lower.includes("heap") || lower.includes("priority")) return "Heaps / Priority Queues";
+      if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
+      if (lower.includes("linked list")) return "Linked Lists";
+      if (lower.includes("stack")) return "Stacks";
+      if (lower.includes("queue")) return "Queues";
+      if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
+      if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
+      if (lower.includes("greedy")) return "Greedy Algorithms";
+      if (lower.includes("string")) return "Strings";
+      if (lower.includes("array") || lower.includes("matrix") || lower.includes("vector")) return "Arrays";
 
-          // Extract Data
-          const name = row.find(v => v && v.toString().length < 100 && !v.toString().includes('http') && !v.toString().match(/^\d+$/)) || "Unknown";
-          const link = row.find(v => v && v.toString().includes('http')) || "";
+      return "Uncategorized";
+    };
 
-          // Strict Topic Extraction
-          let potentialTopic = row.find(v =>
-            v &&
-            v.toString() !== name &&
-            v.toString() !== link &&
-            v.toString().length < 30 &&
-            !v.toString().match(/^(Easy|Medium|Hard)$/i) &&
-            !v.toString().match(/^\d+$/) &&
-            !v.toString().toLowerCase().includes('leetcode') && // Reject "LeetCode ..."
-            !v.toString().toLowerCase().includes('problem')
-          );
+    // Filter Rows (Client-Side)
+    const rawProblems = [];
+    jsonData.forEach(row => {
+      if (!row || row.length === 0) return;
 
-          // Normalize immediately
-          let topic = normalizeTopic(potentialTopic);
+      // Check for Link
+      const hasLink = row.some(val => val && val.toString().includes('http'));
+      if (!hasLink) {
+        // Even if no link, if it looks like a problem name, keep it?
+        // User said "get leetcode problem links... during analyse".
+        // So we should accept rows with just names too.
+        const hasName = row.some(val => val && val.toString().length > 3 && !val.toString().match(/^\d+$/));
+        if (!hasName) return;
+      }
 
-          // If Uncategorized, try to guess from name, but DO NOT default to Arrays yet.
-          // Let Groq AI handle it on the backend.
-          if (topic === "Uncategorized") {
-            topic = normalizeTopic(name);
-          }
+      // Extract Data
+      const name = row.find(v => v && v.toString().length < 100 && !v.toString().includes('http') && !v.toString().match(/^\d+$/)) || "Unknown";
+      const link = row.find(v => v && v.toString().includes('http')) || "";
 
-          const difficulty = row.find(v => v && v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+      // Strict Topic Extraction
+      let potentialTopic = row.find(v =>
+        v &&
+        v.toString() !== name &&
+        v.toString() !== link &&
+        v.toString().length < 40 &&
+        !v.toString().match(/^(Easy|Medium|Hard)$/i) &&
+        !v.toString().match(/^\d+$/) &&
+        !v.toString().toLowerCase().includes('leetcode') &&
+        !v.toString().toLowerCase().includes('problem')
+      ) || "Uncategorized";
 
-          rawProblems.push({ name: name.trim(), link, topic, difficulty, source: file.name });
-        });
+      // Normalize immediately
+      let topic = normalizeTopic(potentialTopic);
 
-        if (rawProblems.length === 0) {
-          throw new Error('No valid problems found. Ensure your sheet has links (http/https).');
-        }
+      // If Uncategorized, try to guess from name
+      if (topic === "Uncategorized") {
+        topic = normalizeTopic(name);
+      }
 
-        console.log(`Extracted ${rawProblems.length} valid problems. Starting Batch Analysis...`);
-        analyseBtn.textContent = `Analyzing 0/${rawProblems.length}...`;
+      // Robust Difficulty Extraction
+      let difficulty = "Medium";
+      const diffCell = row.find(v => v && v.toString().match(/(Easy|Medium|Hard)/i));
+      if (diffCell) {
+        const match = diffCell.toString().match(/(Easy|Medium|Hard)/i);
+        if (match) difficulty = match[0];
+        difficulty = difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
+      }
 
-        // 2. Batch Analysis (Loop)
-        const BATCH_SIZE = 20;
-        let analyzedProblems = [];
+      rawProblems.push({ name: name.trim(), link, topic, difficulty, source: "Google Sheet" });
+    });
 
-        for (let i = 0; i < rawProblems.length; i += BATCH_SIZE) {
-          const chunk = rawProblems.slice(i, i + BATCH_SIZE);
+    if (rawProblems.length === 0) {
+      alert('No valid problems found. Ensure your sheet has problem names.');
+      return;
+    }
 
-          try {
-            const batchResponse = await fetch('/api/analyze-batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ problems: chunk })
-            });
+    // 2. Batch Analysis (Send to Backend AI)
+    analyseBtn.textContent = 'Analyzing with AI...';
 
-            if (batchResponse.ok) {
-              const batchResult = await batchResponse.json();
-              analyzedProblems = analyzedProblems.concat(batchResult.problems);
-            } else {
-              console.error('Batch failed, using raw data for this chunk');
-              analyizedProblems = analyzedProblems.concat(chunk); // Fallback
-            }
+    // Process in batches of 25
+    const BATCH_SIZE = 25;
+    currentProblems = []; // Reset global
 
-          } catch (e) {
-            console.error('Batch network error', e);
-            analyzedProblems = analyzedProblems.concat(chunk);
-          }
+    for (let i = 0; i < rawProblems.length; i += BATCH_SIZE) {
+      const batch = rawProblems.slice(i, i + BATCH_SIZE);
+      console.log(`Analyzing batch ${i / BATCH_SIZE + 1}...`);
 
-          // Update Progress
-          analyseBtn.textContent = `Analyzing ${Math.min(i + BATCH_SIZE, rawProblems.length)}/${rawProblems.length}...`;
-        }
+      const batchRes = await fetch('/api/analyze-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problems: batch })
+      });
 
-        currentProblems = analyzedProblems;
-        console.log('Analysis Complete:', currentProblems);
+      const batchData = await batchRes.json();
+      if (batchData.problems) {
+        currentProblems.push(...batchData.problems);
+      }
+    }
 
-        // 3. Calculate Summary & Render
-        const STANDARD_TOPICS = [
-          "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
-          "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
-          "Dynamic Programming (DP)", "Recursion & Backtracking",
-          "Sorting & Searching", "Greedy Algorithms"
-        ];
+    console.log('Analysis Complete:', currentProblems);
 
-        const summary = {};
-        // Initialize summary with 0s for strict ordering (optional, but good for structure)
-        STANDARD_TOPICS.forEach(t => summary[t] = { easy: 0, medium: 0, hard: 0 });
+    // 3. Calculate Summary & Render
+    const STANDARD_TOPICS = [
+      "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
+      "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
+      "Dynamic Programming (DP)", "Recursion & Backtracking",
+      "Sorting & Searching", "Greedy Algorithms"
+    ];
 
-        currentProblems.forEach(p => {
-          let topic = p.topic || "Uncategorized";
-          // Double-check normalization
-          topic = normalizeTopic(topic);
+    const summary = {};
+    STANDARD_TOPICS.forEach(t => summary[t] = { easy: 0, medium: 0, hard: 0 });
 
-          // If still Uncategorized, keep it as is so we can see it (or map to a 'Misc' if user prefers)
-          // But for now, let's see what the AI actually returned.
+    currentProblems.forEach(p => {
+      let topic = p.topic || "Uncategorized";
+      topic = normalizeTopic(topic);
 
-          // Ensure topic exists in summary (if it's one of the 13, it will be. If not, add it dynamically?)
-          // The user wants ONLY the 13 topics.
-          // If it's Uncategorized, we have a problem. 
-          // Let's force it to "Arrays" ONLY if it's truly unknown, but at least we warned.
-          if (topic === "Uncategorized") {
-            console.warn("Problem remained Uncategorized:", p.name);
-            topic = "Arrays"; // Fallback for UI consistency, but at least we warned.
-          }
+      if (topic === "Uncategorized") {
+        console.warn("Problem remained Uncategorized:", p.name);
+        topic = "Arrays"; // Fallback
+      }
 
-          if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
+      if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
 
-          const diff = (p.difficulty || "Medium").toLowerCase();
-          if (summary[topic][diff] !== undefined) summary[topic][diff]++;
-        });
+      const diff = (p.difficulty || "Medium").toLowerCase();
+      if (summary[topic][diff] !== undefined) summary[topic][diff]++;
+    });
 
-        // Render Dashboard
-        const topicGrid = document.querySelector('.topic-grid');
-        topicGrid.innerHTML = ''; // Clear previous
+    // Render Dashboard
+    const topicGrid = document.querySelector('.topic-grid');
+    topicGrid.innerHTML = '';
 
-        // Iterate through STANDARD_TOPICS to ensure correct order
-        STANDARD_TOPICS.forEach(topic => {
-          const counts = summary[topic];
-          const total = counts.easy + counts.medium + counts.hard;
+    STANDARD_TOPICS.forEach(topic => {
+      const counts = summary[topic];
+      const total = counts.easy + counts.medium + counts.hard;
 
-          // Only show if there are problems (or if you want to show empty categories, remove this check)
-          if (total === 0) return;
+      if (total === 0) return;
 
-          const card = document.createElement('div');
-          card.className = 'topic-card';
-          card.innerHTML = `
+      const card = document.createElement('div');
+      card.className = 'topic-card';
+      card.innerHTML = `
         <h3>${topic}</h3>
         <div class="topic-stats">
           <div class="stat-item">
@@ -359,26 +356,16 @@ analyseBtn.addEventListener('click', async () => {
             </div>
         </div>
       `;
-          topicGrid.appendChild(card);
-        });
-        document.getElementById('resultsSection').style.display = 'block';
-        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-
-      } catch (parseError) {
-        console.error('Client-side parsing error:', parseError);
-        alert('Failed to read file: ' + parseError.message);
-      } finally {
-        analyseBtn.textContent = 'Analyse Sheets';
-        analyseBtn.disabled = false;
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
+      topicGrid.appendChild(card);
+    });
+    document.getElementById('resultsSection').style.display = 'block';
+    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
   } catch (error) {
     console.error('Error:', error);
     alert('An error occurred: ' + error.message);
-    analyseBtn.textContent = 'Analyse Sheets';
+  } finally {
+    analyseBtn.textContent = 'Analyse Sheet';
     analyseBtn.disabled = false;
   }
 });
