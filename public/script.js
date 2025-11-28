@@ -161,62 +161,105 @@ function handleUpload() {
 }
 uploadBtn.addEventListener('click', handleUpload);
 
-// Analyse: Send files to Backend
+// Analyse Sheets (Client-Side Batching)
 analyseBtn.addEventListener('click', async () => {
-  if (selectedFiles.length === 0) {
-    alert('Please upload at least one CSV file first.');
+  const fileInput = document.getElementById('sheetInput');
+  if (!fileInput.files.length) {
+    alert('Please select a file first.');
     return;
   }
 
-  analyseBtn.textContent = 'Processing...';
+  analyseBtn.textContent = 'Parsing CSV...';
   analyseBtn.disabled = true;
 
-  const formData = new FormData();
-  selectedFiles.forEach(file => {
-    formData.append('files', file);
-  });
-
   try {
-    const response = await fetch(API_URL, {
+    // 1. Parse CSV (Fast)
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    const parseResponse = await fetch('/api/parse-csv', {
       method: 'POST',
       body: formData
     });
 
-    const result = await response.json(); // Parse JSON once
+    if (!parseResponse.ok) throw new Error('Failed to parse CSV');
+    const parseResult = await parseResponse.json();
+    const rawProblems = parseResult.problems;
 
-    if (!response.ok) {
-      // Now 'result' contains the error details
-      // Check for Rate Limit message
-      if (result.details && result.details.includes('Please try again in')) {
-        const waitTime = result.details.match(/Please try again in (.*?)\./)[1];
-        alert(`⚠️ AI Usage Limit Reached!\n\nPlease wait ${waitTime} before trying again.`);
-        return;
-      }
-      throw new Error(result.error || 'Analysis failed');
+    if (!rawProblems || rawProblems.length === 0) {
+      throw new Error('No valid problems found in CSV.');
     }
 
-    console.log('Backend Response:', result);
+    console.log(`Parsed ${rawProblems.length} problems. Starting Batch Analysis...`);
+    analyseBtn.textContent = `Analyzing 0/${rawProblems.length}...`;
 
-    // Render Results
-    const summary = result.data.summary;
-    currentProblems = result.data.problems; // Store problems for later
-    const topicGrid = document.getElementById('topicSummary');
+    // 2. Batch Analysis (Loop)
+    const BATCH_SIZE = 20;
+    let analyzedProblems = [];
+
+    for (let i = 0; i < rawProblems.length; i += BATCH_SIZE) {
+      const chunk = rawProblems.slice(i, i + BATCH_SIZE);
+
+      try {
+        const batchResponse = await fetch('/api/analyze-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ problems: chunk })
+        });
+
+        if (batchResponse.ok) {
+          const batchResult = await batchResponse.json();
+          analyzedProblems = analyzedProblems.concat(batchResult.problems);
+        } else {
+          console.error('Batch failed, using raw data for this chunk');
+          analyzedProblems = analyzedProblems.concat(chunk); // Fallback
+        }
+
+      } catch (e) {
+        console.error('Batch network error', e);
+        analyzedProblems = analyzedProblems.concat(chunk);
+      }
+
+      // Update Progress
+      analyseBtn.textContent = `Analyzing ${Math.min(i + BATCH_SIZE, rawProblems.length)}/${rawProblems.length}...`;
+    }
+
+    currentProblems = analyzedProblems;
+    console.log('Analysis Complete:', currentProblems);
+
+    // 3. Calculate Summary & Render
+    const summary = {};
+    currentProblems.forEach(p => {
+      const topic = p.topic || "Uncategorized";
+      if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
+      const diff = (p.difficulty || "Medium").toLowerCase();
+      if (summary[topic][diff] !== undefined) summary[topic][diff]++;
+    });
+
+    // Render Dashboard
+    const topicGrid = document.querySelector('.topic-grid');
     topicGrid.innerHTML = ''; // Clear previous
 
-    if (summary) {
-      Object.entries(summary).forEach(([topic, counts]) => {
-        const card = document.createElement('div');
-        card.className = 'topic-card';
-        card.innerHTML = `
-          <div class="topic-header">
-            <span class="topic-name">${topic}</span>
-            <div class="topic-stats">
-              <span class="stat-badge" style="color:#4ade80">E: ${counts.easy || 0}</span>
-              <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium || 0}</span>
-              <span class="stat-badge" style="color:#f87171">H: ${counts.hard || 0}</span>
-            </div>
+    Object.keys(summary).forEach(topic => {
+      const counts = summary[topic];
+      const total = counts.easy + counts.medium + counts.hard;
+
+      const card = document.createElement('div');
+      card.className = 'topic-card';
+      card.innerHTML = `
+        <h3>${topic}</h3>
+        <div class="topic-stats">
+          <div class="stat-item">
+            <span class="stat-value">${total}</span>
+            <span class="stat-label">Problems</span>
           </div>
-          <div class="days-input-group" style="display: flex; gap: 10px;">
+          <div class="difficulty-breakdown">
+            <span class="stat-badge" style="color:#34d399">E: ${counts.easy}</span>
+            <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium}</span>
+            <span class="stat-badge" style="color:#f87171">H: ${counts.hard}</span>
+          </div>
+        </div>
+        <div class="days-input-group" style="display: flex; gap: 10px;">
             <div style="flex: 1;">
               <label>Days:</label>
               <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
@@ -225,23 +268,17 @@ analyseBtn.addEventListener('click', async () => {
               <label>Order:</label>
               <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
             </div>
-          </div>
-        `;
-        topicGrid.appendChild(card);
-      });
+        </div>
+      `;
+      topicGrid.appendChild(card);
+    });
 
-      document.getElementById('resultsSection').style.display = 'block';
-      // Scroll to results
-      document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-    } else {
-      alert('No topic summary returned.');
-    }
+    document.getElementById('resultsSection').style.display = 'block';
+    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
   } catch (error) {
     console.error('Error:', error);
-    if (!error.message.includes('AI Usage Limit')) {
-      alert('An error occurred: ' + error.message);
-    }
+    alert('An error occurred: ' + error.message);
   } finally {
     analyseBtn.textContent = 'Analyse Sheets';
     analyseBtn.disabled = false;

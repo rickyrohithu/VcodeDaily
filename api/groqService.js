@@ -198,4 +198,65 @@ async function processWithGroq(rawData) {
   }
 }
 
-module.exports = { processWithGroq };
+// NEW: Process a small batch of problems (called by frontend loop)
+async function processBatchWithGroq(problems) {
+  const problemNames = problems.map(p => p.name);
+
+  const systemPrompt = `
+    You are an expert DSA Study Planner.
+    Classify the given problems into EXACTLY one of these topics:
+    ${JSON.stringify(ALLOWED_TOPICS)}
+    
+    YOUR TASKS:
+    1. Identify the Topic from the list above.
+    2. Identify the Difficulty (Easy, Medium, Hard).
+    3. Return a JSON object.
+
+    OUTPUT FORMAT (JSON ONLY):
+    {
+      "classifications": {
+        "Problem Name": { "topic": "Topic", "difficulty": "Easy" }
+      }
+    }
+  `;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemNames)}` }
+      ],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.1,
+      response_format: { type: 'json_object' }
+    });
+
+    const result = JSON.parse(completion.choices[0].message.content);
+    const classifications = result.classifications || {};
+
+    // Merge AI results with original data
+    return problems.map(p => {
+      const aiClass = classifications[p.name] || {};
+      let rawTopic = (aiClass.topic && aiClass.topic !== "Uncategorized") ? aiClass.topic : p.topic;
+      const finalTopic = normalizeTopic(rawTopic);
+      const finalDiff = (aiClass.difficulty) ? aiClass.difficulty : p.difficulty;
+
+      return {
+        ...p,
+        topic: finalTopic,
+        difficulty: finalDiff
+      };
+    });
+
+  } catch (error) {
+    console.error('Batch AI Error:', error.message);
+    // Fallback: Return original with normalized topic
+    return problems.map(p => ({
+      ...p,
+      topic: normalizeTopic(p.topic),
+      difficulty: p.difficulty
+    }));
+  }
+}
+
+module.exports = { processWithGroq, processBatchWithGroq };

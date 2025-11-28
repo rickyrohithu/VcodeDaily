@@ -20,78 +20,70 @@ app.use(express.json());
 // Configure Multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Helper to parse CSV buffer
-const parseCSV = (buffer) => {
-    return new Promise((resolve, reject) => {
+// 1. PARSE CSV ONLY (Fast)
+app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
         const results = [];
         const stream = require('stream');
         const bufferStream = new stream.PassThrough();
-        bufferStream.end(buffer);
+        bufferStream.end(req.file.buffer);
 
-        bufferStream
-            .pipe(csv({ headers: false })) // Read as arrays, ignore headers
-            .on('data', (data) => {
-                // 'data' is now an object with numeric keys: { '0': 'Val1', '1': 'Val2' }
-                // Convert to array of values
-                const row = Object.values(data).filter(val => val && val.trim() !== '');
+        await new Promise((resolve, reject) => {
+            bufferStream
+                .pipe(csv())
+                .on('data', (data) => {
+                    const row = Object.values(data).filter(val => val && val.trim() !== '');
+                    if (row.length === 0) return;
 
-                // Filter out empty rows
-                if (row.length === 0) return;
+                    // Filter out Header Rows & Garbage
+                    const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+                    if (!hasLink) return;
 
-                // Filter out Header Rows & Garbage
-                const rowString = row.join(' ').toLowerCase();
-                const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+                    const rowString = row.join(' ').toLowerCase();
+                    if (rowString.includes('problem name') || rowString.length < 10) return;
 
-                if (!hasLink) {
-                    // If there's no link, it's likely a header or a topic separator, NOT a problem.
-                    return;
-                }
-
-                if (rowString.includes('problem name') ||
-                    rowString.includes('problem link') ||
-                    rowString.length < 10) {
-                    return;
-                }
-
-                results.push(row);
-            })
-            .on('end', () => resolve(results))
-            .on('error', (err) => reject(err));
-    });
-};
-
-// Route: Upload and Process
-app.post('/api/upload', upload.array('files', 10), async (req, res) => {
-    try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'No files uploaded' });
-        }
-
-        // 1. Parse CSVs
-        const rawData = [];
-        for (const file of req.files) {
-            const parsed = await parseCSV(file.buffer);
-            console.log(`Parsed ${file.originalname}: ${parsed.length} rows found.`);
-            if (parsed.length > 0) {
-                console.log('Sample row:', parsed[0]); // Log first row to check headers
-            }
-            rawData.push({
-                filename: file.originalname,
-                content: parsed
-            });
-        }
-
-        // 2. Send to Groq
-        const groqResponse = await processWithGroq(rawData);
-
-        res.json({
-            message: 'Analysis complete',
-            data: groqResponse
+                    results.push(row);
+                })
+                .on('end', () => resolve(results))
+                .on('error', (err) => reject(err));
         });
 
+        // Convert raw rows to initial problem objects
+        const rawProblems = results.map(row => {
+            const name = row.find(v => v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/)) || "Unknown";
+            const link = row.find(v => v.startsWith('http')) || "";
+            const potentialTopic = row.find(v => v !== name && v !== link && v.length < 30 && !v.match(/^(Easy|Medium|Hard)$/i) && !v.match(/^\d+$/)) || "Uncategorized";
+            const difficulty = row.find(v => v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+
+            return { name: name.trim(), link, topic: potentialTopic, difficulty, source: req.file.originalname };
+        });
+
+        res.json({ problems: rawProblems });
+
     } catch (error) {
-        console.error('Error in /api/upload:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        console.error('CSV Parse Error:', error);
+        res.status(500).json({ error: 'Failed to parse CSV' });
+    }
+});
+
+// 2. ANALYZE BATCH (Fast - called repeatedly by frontend)
+app.post('/api/analyze-batch', async (req, res) => {
+    try {
+        const { problems } = req.body;
+        if (!problems || !Array.isArray(problems)) {
+            return res.status(400).json({ error: 'Invalid problems array' });
+        }
+
+        const { processBatchWithGroq } = require('./groqService');
+        const results = await processBatchWithGroq(problems);
+
+        res.json({ problems: results });
+
+    } catch (error) {
+        console.error('Batch Analysis Error:', error);
+        res.status(500).json({ error: 'Analysis failed' });
     }
 });
 
