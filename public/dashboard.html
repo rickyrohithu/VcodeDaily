@@ -12,17 +12,12 @@
     <div class="container glass">
         <h1>Manage Your Sheets</h1>
         <p class="subtitle">Add up to 10 sheets to track your progress</p>
-        <div class="sheet-section">
-            <div id="sheetInputs" class="sheet-inputs">
-                <!-- Initial sheet input fields will be injected by script.js -->
-            </div>
-            <button id="addSheetBtn" class="action-btn add-btn">Add More Sheet</button>
+        <div class="upload-box">
+            <input type="text" id="sheetUrl" placeholder="Paste Google Sheet URL (Make sure it's Public)"
+                class="url-input">
+            <button id="analyseBtn" class="primary-btn">Analyse Sheet</button>
         </div>
-        <div class="actions">
-            <button id="downloadBtn" class="action-btn download-btn">Download All CSVs</button>
-            <button id="uploadBtn" class="action-btn upload-btn">Upload CSV Files</button>
-            <button id="analyseBtn" class="action-btn analyse-btn">Analyse Sheets</button>
-        </div>
+
 
         <!-- Results Section (Hidden by default) -->
         <div id="resultsSection" class="results-section" style="display: none;">

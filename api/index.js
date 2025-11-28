@@ -5,6 +5,7 @@ const csv = require('csv-parser');
 const { processWithGroq } = require('./groqService');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const axios = require('axios');
 
 const app = express();
 
@@ -23,6 +24,37 @@ if (supabaseUrl && supabaseKey) {
 } else {
     console.warn("⚠️ Missing SUPABASE_URL or SUPABASE_KEY. Database features will fail.");
 }
+
+// Route: Proxy Google Sheet (Bypass CORS)
+app.post('/api/proxy-sheet', async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: 'URL is required' });
+
+        // Transform to CSV Export URL
+        // e.g. https://docs.google.com/spreadsheets/d/KEY/edit#gid=0 -> https://docs.google.com/spreadsheets/d/KEY/export?format=csv
+        let csvUrl = url;
+        if (url.includes('docs.google.com/spreadsheets')) {
+            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (match) {
+                const sheetId = match[1];
+                csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+            }
+        }
+
+        console.log('Fetching sheet from:', csvUrl);
+        const response = await axios.get(csvUrl, { responseType: 'arraybuffer' }); // Get raw buffer
+
+        // Convert buffer to base64 to send safely to frontend
+        const base64 = Buffer.from(response.data).toString('base64');
+
+        res.json({ data: base64 });
+
+    } catch (error) {
+        console.error('Proxy Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch sheet. Make sure it is Public.' });
+    }
+});
 
 // Middleware
 app.use(cors());
