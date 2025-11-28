@@ -165,9 +165,12 @@ app.post('/api/generate-schedule', async (req, res) => {
             const mockSchedule = [
                 { day: 1, topic: "Fallback Topic", problems: [{ name: "Sample Problem", source: "System", difficulty: "Easy" }] }
             ];
-            // ... save mock to DB ...
             return res.json({ message: 'No problems provided, returned mock.', schedule: mockSchedule });
         }
+
+        // Filter out nulls/invalid problems
+        const validProblems = problems.filter(p => p && p.name);
+        console.log(`Processing ${validProblems.length} valid problems.`);
 
         // ALGORITHMIC SCHEDULE GENERATION (Weighted "Equal Hardwork" Distribution)
         // Logic: Hard=4pts, Medium=2pts, Easy=1pt.
@@ -178,7 +181,7 @@ app.post('/api/generate-schedule', async (req, res) => {
 
         // 1. Group problems by Topic
         const problemsByTopic = {};
-        problems.forEach(p => {
+        validProblems.forEach(p => {
             const topic = p.topic || "Uncategorized";
             if (!problemsByTopic[topic]) problemsByTopic[topic] = [];
             problemsByTopic[topic].push(p);
