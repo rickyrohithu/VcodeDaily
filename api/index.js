@@ -310,8 +310,11 @@ app.post('/api/generate-schedule', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Error generating schedule:', error);
-        console.error('Stack:', error.stack);
-        res.status(500).json({ error: 'Failed to generate schedule', details: error.message });
+        res.status(500).json({
+            error: 'Failed to generate schedule',
+            details: error.message,
+            stack: error.stack // Send stack to frontend for debugging
+        });
     }
 });
 
