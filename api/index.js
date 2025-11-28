@@ -151,9 +151,12 @@ app.post('/api/analyze-batch', async (req, res) => {
 // Route: Generate Schedule
 app.post('/api/generate-schedule', async (req, res) => {
     try {
-        const { topicDays, problems, userEmail } = req.body;
+        let { topicDays, problems, userEmail, topicOrder } = req.body;
 
-        console.log('Generating schedule for:', topicDays);
+        topicDays = topicDays || {};
+        topicOrder = topicOrder || {};
+
+        console.log('Generating schedule for:', Object.keys(topicDays));
         console.log(`Received ${problems ? problems.length : 0} problems.`);
 
         if (!problems || problems.length === 0) {

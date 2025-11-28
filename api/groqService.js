@@ -211,7 +211,7 @@ async function processBatchWithGroq(problems) {
     YOUR TASKS:
     1. Analyze each problem using its Name and Link.
     2. Identify the Topic from the list above.
-    3. Identify the Difficulty (Easy, Medium, Hard).
+    3. Identify the Difficulty (Easy, Medium, Hard). ESTIMATE based on problem name if unknown.
     4. Return a JSON object where keys are the IDs provided.
 
     OUTPUT FORMAT (JSON ONLY):
@@ -234,6 +234,7 @@ async function processBatchWithGroq(problems) {
       response_format: { type: 'json_object' }
     });
 
+    console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "..."); // Log first 200 chars
     const result = JSON.parse(completion.choices[0].message.content);
     const classifications = result.classifications || {};
 
