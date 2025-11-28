@@ -286,10 +286,25 @@ analyseBtn.addEventListener('click', async () => {
         console.log('Analysis Complete:', currentProblems);
 
         // 3. Calculate Summary & Render
+        const STANDARD_TOPICS = [
+          "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
+          "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
+          "Dynamic Programming (DP)", "Recursion & Backtracking",
+          "Sorting & Searching", "Greedy Algorithms"
+        ];
+
         const summary = {};
+        // Initialize summary with 0s for strict ordering (optional, but good for structure)
+        STANDARD_TOPICS.forEach(t => summary[t] = { easy: 0, medium: 0, hard: 0 });
+
         currentProblems.forEach(p => {
-          const topic = p.topic || "Uncategorized";
+          let topic = p.topic || "Arrays";
+          // Double-check normalization
+          topic = normalizeTopic(topic);
+          if (topic === "Uncategorized") topic = "Arrays"; // Final safety net
+
           if (!summary[topic]) summary[topic] = { easy: 0, medium: 0, hard: 0 };
+
           const diff = (p.difficulty || "Medium").toLowerCase();
           if (summary[topic][diff] !== undefined) summary[topic][diff]++;
         });
@@ -298,39 +313,42 @@ analyseBtn.addEventListener('click', async () => {
         const topicGrid = document.querySelector('.topic-grid');
         topicGrid.innerHTML = ''; // Clear previous
 
-        Object.keys(summary).forEach(topic => {
+        // Iterate through STANDARD_TOPICS to ensure correct order
+        STANDARD_TOPICS.forEach(topic => {
           const counts = summary[topic];
           const total = counts.easy + counts.medium + counts.hard;
+
+          // Only show if there are problems (or if you want to show empty categories, remove this check)
+          if (total === 0) return;
 
           const card = document.createElement('div');
           card.className = 'topic-card';
           card.innerHTML = `
-            <h3>${topic}</h3>
-            <div class="topic-stats">
-              <div class="stat-item">
-                <span class="stat-value">${total}</span>
-                <span class="stat-label">Problems</span>
-              </div>
-              <div class="difficulty-breakdown">
-                <span class="stat-badge" style="color:#34d399">E: ${counts.easy}</span>
-                <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium}</span>
-                <span class="stat-badge" style="color:#f87171">H: ${counts.hard}</span>
-              </div>
+        <h3>${topic}</h3>
+        <div class="topic-stats">
+          <div class="stat-item">
+            <span class="stat-value">${total}</span>
+            <span class="stat-label">Problems</span>
+          </div>
+          <div class="difficulty-breakdown">
+            <span class="stat-badge" style="color:#34d399">E: ${counts.easy}</span>
+            <span class="stat-badge" style="color:#fbbf24">M: ${counts.medium}</span>
+            <span class="stat-badge" style="color:#f87171">H: ${counts.hard}</span>
+          </div>
+        </div>
+        <div class="days-input-group" style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label>Days:</label>
+              <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
             </div>
-            <div class="days-input-group" style="display: flex; gap: 10px;">
-                <div style="flex: 1;">
-                  <label>Days:</label>
-                  <input type="number" min="1" placeholder="3" value="" class="topic-days-input" data-topic="${topic}">
-                </div>
-                <div style="flex: 1;">
-                  <label>Order:</label>
-                  <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
-                </div>
+            <div style="flex: 1;">
+              <label>Order:</label>
+              <input type="number" min="1" placeholder="1" class="topic-order-input" data-topic="${topic}">
             </div>
-          `;
+        </div>
+      `;
           topicGrid.appendChild(card);
         });
-
         document.getElementById('resultsSection').style.display = 'block';
         document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
 
