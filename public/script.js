@@ -161,14 +161,15 @@ function handleUpload() {
 }
 uploadBtn.addEventListener('click', handleUpload);
 
-// Analyse Sheets (Client-Side Parsing & Batching)
+// Analyse Sheet (URL Based)
 analyseBtn.addEventListener('click', async () => {
-  if (!selectedFiles || selectedFiles.length === 0) {
-    alert('Please upload a CSV/Excel file first.');
+  const sheetUrl = document.getElementById('sheetUrl').value.trim();
+  if (!sheetUrl) {
+    alert('Please enter a Google Sheet URL.');
     return;
   }
 
-  analyseBtn.textContent = 'Reading File...';
+  analyseBtn.textContent = 'Fetching...';
   analyseBtn.disabled = true;
 
   try {
