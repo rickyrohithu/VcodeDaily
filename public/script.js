@@ -181,7 +181,10 @@ analyseBtn.addEventListener('click', async () => {
       body: formData
     });
 
-    if (!parseResponse.ok) throw new Error('Failed to parse CSV');
+    if (!parseResponse.ok) {
+      const errorData = await parseResponse.json();
+      throw new Error(errorData.details || errorData.error || 'Failed to parse CSV');
+    }
     const parseResult = await parseResponse.json();
     const rawProblems = parseResult.problems;
 

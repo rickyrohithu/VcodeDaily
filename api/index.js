@@ -9,9 +9,20 @@ require('dotenv').config();
 const app = express();
 
 // Supabase Setup
+// Supabase Setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+let supabase = null;
+
+if (supabaseUrl && supabaseKey) {
+    try {
+        supabase = createClient(supabaseUrl, supabaseKey);
+    } catch (e) {
+        console.error("Supabase Init Error:", e.message);
+    }
+} else {
+    console.warn("⚠️ Missing SUPABASE_URL or SUPABASE_KEY. Database features will fail.");
+}
 
 // Middleware
 app.use(cors());
