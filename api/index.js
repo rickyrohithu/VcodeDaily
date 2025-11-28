@@ -32,7 +32,7 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
 
         await new Promise((resolve, reject) => {
             bufferStream
-                .pipe(csv())
+                .pipe(csv({ headers: false }))
                 .on('data', (data) => {
                     const row = Object.values(data).filter(val => val && val.trim() !== '');
                     if (row.length === 0) return;
@@ -63,8 +63,9 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
         res.json({ problems: rawProblems });
 
     } catch (error) {
-        console.error('CSV Parse Error:', error);
-        res.status(500).json({ error: 'Failed to parse CSV' });
+        console.error('❌ CSV Parse Error:', error);
+        console.error('Stack:', error.stack);
+        res.status(500).json({ error: 'Failed to parse CSV', details: error.message });
     }
 });
 
