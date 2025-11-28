@@ -23,25 +23,38 @@ const upload = multer({ storage: multer.memoryStorage() });
 // 1. PARSE CSV ONLY (Fast)
 app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        console.log('📂 Received file upload request');
+        if (!req.file) {
+            console.error('❌ No file in req.file');
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        console.log(`📄 File: ${req.file.originalname}, Size: ${req.file.size} bytes, Type: ${req.file.mimetype}`);
 
         let results = [];
         const filename = req.file.originalname.toLowerCase();
 
         if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
-            // Parse Excel
+            console.log('📊 Parsing as Excel...');
             const XLSX = require('xlsx');
             const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Array of arrays
 
-            jsonData.forEach(row => {
+            console.log(`📊 Excel has ${jsonData.length} rows`);
+
+            jsonData.forEach((row, index) => {
+                if (index < 3) console.log(`Row ${index}:`, row); // Debug first 3 rows
+
                 if (!row || row.length === 0) return;
 
                 // Filter out Header Rows & Garbage
-                const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
-                if (!hasLink) return;
+                const hasLink = row.some(val => val && val.toString().trim().includes('http')); // Relaxed check
+                if (!hasLink) {
+                    if (index < 5) console.log(`Skipping Row ${index} (No Link)`);
+                    return;
+                }
 
                 const rowString = row.join(' ').toLowerCase();
                 if (rowString.includes('problem name') || rowString.length < 10) return;
@@ -50,19 +63,23 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
             });
 
         } else {
-            // Parse CSV
+            console.log('📝 Parsing as CSV...');
             const stream = require('stream');
             const bufferStream = new stream.PassThrough();
             bufferStream.end(req.file.buffer);
 
             await new Promise((resolve, reject) => {
+                let rowIndex = 0;
                 bufferStream
                     .pipe(csv({ headers: false }))
                     .on('data', (data) => {
                         const row = Object.values(data).filter(val => val && val.trim() !== '');
+                        if (rowIndex < 3) console.log(`Row ${rowIndex}:`, row); // Debug first 3 rows
+                        rowIndex++;
+
                         if (row.length === 0) return;
 
-                        const hasLink = row.some(val => val && val.toString().trim().startsWith('http'));
+                        const hasLink = row.some(val => val && val.toString().trim().includes('http')); // Relaxed check
                         if (!hasLink) return;
 
                         const rowString = row.join(' ').toLowerCase();
@@ -75,10 +92,17 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
             });
         }
 
+        console.log(`✅ Extracted ${results.length} valid problems.`);
+
+        if (results.length === 0) {
+            console.warn('⚠️ No valid problems found after filtering.');
+            return res.status(400).json({ error: 'No valid problems found. Ensure your sheet has links (http/https).' });
+        }
+
         // Convert raw rows to initial problem objects
         const rawProblems = results.map(row => {
-            const name = row.find(v => v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/)) || "Unknown";
-            const link = row.find(v => v.startsWith('http')) || "";
+            const name = row.find(v => v.length < 100 && !v.includes('http') && !v.match(/^\d+$/)) || "Unknown";
+            const link = row.find(v => v.includes('http')) || "";
             const potentialTopic = row.find(v => v !== name && v !== link && v.length < 30 && !v.match(/^(Easy|Medium|Hard)$/i) && !v.match(/^\d+$/)) || "Uncategorized";
             const difficulty = row.find(v => v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
 
