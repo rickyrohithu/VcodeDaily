@@ -194,7 +194,7 @@ app.post('/api/generate-schedule', async (req, res) => {
         // 3. Distribute per Topic
         for (const topic of sortedTopics) {
             const topicProblems = problemsByTopic[topic];
-            const daysAllocated = topicDays[topic] || 3;
+            const daysAllocated = parseInt(topicDays[topic]) || 3;
 
             // Sort problems by difficulty (Hard -> Medium -> Easy) to distribute heavy ones first
             const difficultyWeight = { "Hard": 4, "Medium": 2, "Easy": 1 };
@@ -275,30 +275,34 @@ app.post('/api/generate-schedule', async (req, res) => {
         // Note: We need userEmail. For now, we'll use a placeholder if not provided,
         // but ideally the frontend sends the logged-in user's email.
         const emailToSave = userEmail || 'demo_user@example.com';
-        console.log(`Attempting to save schedule for ${emailToSave} to Supabase...`);
+        let dbRecord = null;
+        if (supabase) {
+            console.log(`Attempting to save schedule for ${emailToSave} to Supabase...`);
+            const { data, error } = await supabase
+                .from('schedules')
+                .insert([
+                    {
+                        user_email: emailToSave,
+                        schedule_data: finalSchedule,
+                        is_active: true
+                    }
+                ])
+                .select();
 
-        const { data, error } = await supabase
-            .from('schedules')
-            .insert([
-                {
-                    user_email: emailToSave,
-                    schedule_data: finalSchedule,
-                    is_active: true
-                }
-            ])
-            .select();
-
-        if (error) {
-            console.error('❌ Supabase Insert Error:', JSON.stringify(error, null, 2));
-            // We don't block the response if DB fails, but we should log it.
+            if (error) {
+                console.error('❌ Supabase Insert Error:', JSON.stringify(error, null, 2));
+            } else {
+                console.log('✅ Schedule saved to DB:', data);
+                dbRecord = data ? data[0] : null;
+            }
         } else {
-            console.log('✅ Schedule saved to DB:', data);
+            console.warn('⚠️ Supabase not configured. Schedule NOT saved to DB.');
         }
 
         res.json({
             message: 'Schedule generated and saved successfully',
             schedule: finalSchedule,
-            db_record: data ? data[0] : null
+            db_record: dbRecord
         });
 
     } catch (error) {
