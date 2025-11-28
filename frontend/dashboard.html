@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard – DSA Sheet Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="container glass">
+        <h1>Manage Your Sheets</h1>
+        <p class="subtitle">Add up to 10 sheets to track your progress</p>
+        <div class="sheet-section">
+            <div id="sheetInputs" class="sheet-inputs">
+                <!-- Initial sheet input fields will be injected by script.js -->
+            </div>
+            <button id="addSheetBtn" class="action-btn add-btn">Add More Sheet</button>
+        </div>
+        <div class="actions">
+            <button id="downloadBtn" class="action-btn download-btn">Download All CSVs</button>
+            <button id="uploadBtn" class="action-btn upload-btn">Upload CSV Files</button>
+            <button id="analyseBtn" class="action-btn analyse-btn">Analyse Sheets</button>
+        </div>
+
+        <!-- Results Section (Hidden by default) -->
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <h2>Topic Analysis</h2>
+            <div id="topicSummary" class="topic-grid"></div>
+            <button id="generateScheduleBtn" class="action-btn add-btn" style="margin-top: 1.5rem;">Generate
+                Schedule</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
