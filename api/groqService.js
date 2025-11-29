@@ -88,11 +88,13 @@ function cleanRawData(rawData) {
       // 4. Identify Difficulty
       const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
 
-      if (name && link) { // Only accept if both Name and Link exist
+      // RELAXED CHECK: Accept problem even if Link is missing (Google Sheets CSV strips rich hyperlinks).
+      // The AI will find the link later in the batch process.
+      if (name) {
         const cleanName = name.trim();
         if (!problemMap.has(cleanName)) {
           problemMap.set(cleanName, {
-            link,
+            link, // Might be empty
             sources: new Set(),
             topic: potentialTopic,
             difficulty: difficulty
