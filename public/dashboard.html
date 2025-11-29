@@ -321,14 +321,18 @@
         const sheetsContainer = document.getElementById('sheetsContainer');
         const addSheetBtn = document.getElementById('addSheetBtn');
 
-        // Add a second sheet input by default
-        const defaultSheet2 = document.createElement('div');
-        defaultSheet2.className = 'sheet-pair';
-        defaultSheet2.innerHTML = `
-            <input type="url" class="input-field sheet-url" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
-            <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)" style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
-        `;
-        sheetsContainer.appendChild(defaultSheet2);
+        // Ensure we have 2 inputs on load
+        window.addEventListener('DOMContentLoaded', () => {
+            if (sheetsContainer.children.length < 2) {
+                const div = document.createElement('div');
+                div.className = 'sheet-pair';
+                div.innerHTML = `
+                    <input type="url" class="input-field sheet-url" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                    <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)" style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
+                `;
+                sheetsContainer.appendChild(div);
+            }
+        });
 
         addSheetBtn.addEventListener('click', () => {
             if (sheetsContainer.children.length >= 10) {
@@ -369,11 +373,8 @@
                 }
 
                 // Call Backend API
-                // Since we are likely running on Next.js (Vercel or local), we use the relative path /api/analyze-urls
-                // If running dashboard.html directly as a file, we try localhost:3000
-                const apiUrl = window.location.protocol === 'file:'
-                    ? 'http://localhost:3000/api/analyze-urls'
-                    : '/api/analyze-urls';
+                // Use relative path for Next.js API routes
+                const apiUrl = '/api/analyze-urls';
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
