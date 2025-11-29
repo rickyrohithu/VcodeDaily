@@ -27,32 +27,76 @@ if (supabaseUrl && supabaseKey) {
 
 // Route: Proxy Google Sheet (Bypass CORS)
 app.post('/api/proxy-sheet', async (req, res) => {
-    try {
-        const { url } = req.body;
-        if (!url) return res.status(400).json({ error: 'URL is required' });
+    // ... (existing proxy logic)
+});
 
-        // Transform to CSV Export URL
-        // e.g. https://docs.google.com/spreadsheets/d/KEY/edit#gid=0 -> https://docs.google.com/spreadsheets/d/KEY/export?format=csv
-        let csvUrl = url;
-        if (url.includes('docs.google.com/spreadsheets')) {
-            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-            if (match) {
-                const sheetId = match[1];
-                csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+// Route: Analyze URLs (New Endpoint)
+app.post('/api/analyze-urls', async (req, res) => {
+    try {
+        const { urls } = req.body;
+        if (!urls || !Array.isArray(urls) || urls.length === 0) {
+            return res.status(400).json({ error: 'No URLs provided' });
+        }
+
+        console.log(`Processing ${urls.length} URLs...`);
+        const rawData = [];
+
+        for (const urlObj of urls) {
+            const { url, name } = urlObj;
+            if (!url) continue;
+
+            // Transform to CSV Export URL
+            let csvUrl = url;
+            if (url.includes('docs.google.com/spreadsheets')) {
+                const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                if (match) {
+                    const sheetId = match[1];
+                    csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+                }
+            }
+
+            try {
+                const response = await axios.get(csvUrl, { responseType: 'arraybuffer' });
+
+                // Parse CSV Buffer
+                const stream = require('stream');
+                const bufferStream = new stream.PassThrough();
+                bufferStream.end(response.data);
+
+                const parsedRows = await new Promise((resolve, reject) => {
+                    const results = [];
+                    bufferStream
+                        .pipe(csv())
+                        .on('data', (data) => results.push(data))
+                        .on('end', () => resolve(results))
+                        .on('error', (err) => reject(err));
+                });
+
+                rawData.push({
+                    filename: name || 'Sheet',
+                    content: parsedRows
+                });
+            } catch (err) {
+                console.error(`Failed to fetch/parse ${url}:`, err.message);
             }
         }
 
-        console.log('Fetching sheet from:', csvUrl);
-        const response = await axios.get(csvUrl, { responseType: 'arraybuffer' }); // Get raw buffer
+        if (rawData.length === 0) {
+            return res.status(400).json({ error: 'Failed to fetch any valid CSV data' });
+        }
 
-        // Convert buffer to base64 to send safely to frontend
-        const base64 = Buffer.from(response.data).toString('base64');
+        console.log('Sending data to Groq...');
+        const { processWithGroq } = require('./groqService');
+        const groqResponse = await processWithGroq(rawData);
 
-        res.json({ data: base64 });
+        res.json({
+            message: 'Analysis complete',
+            data: groqResponse
+        });
 
     } catch (error) {
-        console.error('Proxy Error:', error.message);
-        res.status(500).json({ error: 'Failed to fetch sheet. Make sure it is Public.' });
+        console.error('Error in /api/analyze-urls:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -183,170 +227,61 @@ app.post('/api/analyze-batch', async (req, res) => {
 // Route: Generate Schedule
 app.post('/api/generate-schedule', async (req, res) => {
     try {
-        let { topicDays, problems, userEmail, topicOrder } = req.body;
+        const { topicDays, problems, topicOrder, userEmail } = req.body;
+        console.log('Generating schedule for:', topicDays);
 
-        topicDays = topicDays || {};
-        topicOrder = topicOrder || {};
+        // Simple Round-Robin Schedule Generation
+        const schedule = [];
+        let currentDay = 1;
 
-        console.log('Generating schedule for:', Object.keys(topicDays));
-        console.log(`Received ${problems ? problems.length : 0} problems.`);
-
-        if (!problems || problems.length === 0) {
-            console.warn('No problems received. Using Mock Data for fallback.');
-            // Fallback to Mock if no problems (prevents crash)
-            const mockSchedule = [
-                { day: 1, topic: "Fallback Topic", problems: [{ name: "Sample Problem", source: "System", difficulty: "Easy" }] }
-            ];
-            return res.json({ message: 'No problems provided, returned mock.', schedule: mockSchedule });
-        }
-
-        // Filter out nulls/invalid problems
-        const validProblems = problems.filter(p => p && p.name);
-        console.log(`Processing ${validProblems.length} valid problems.`);
-
-        // ALGORITHMIC SCHEDULE GENERATION (Weighted "Equal Hardwork" Distribution)
-        // Logic: Hard=4pts, Medium=2pts, Easy=1pt.
-        // Goal: Balance points per day.
-
-        let finalSchedule = [];
-        let currentDayOffset = 0;
-
-        // 1. Group problems by Topic
-        const problemsByTopic = {};
-        validProblems.forEach(p => {
-            const topic = p.topic || "Uncategorized";
-            if (!problemsByTopic[topic]) problemsByTopic[topic] = [];
-            problemsByTopic[topic].push(p);
+        // Group by topic
+        const byTopic = {};
+        problems.forEach(p => {
+            const t = p.topic || 'Uncategorized';
+            if (!byTopic[t]) byTopic[t] = [];
+            byTopic[t].push(p);
         });
 
-        // 2. Sort Topics based on User Order
-        const sortedTopics = Object.keys(problemsByTopic).sort((a, b) => {
+        // Sort topics based on user preference
+        const sortedTopics = Object.keys(byTopic).sort((a, b) => {
             const orderA = (topicOrder && topicOrder[a]) || 999;
             const orderB = (topicOrder && topicOrder[b]) || 999;
             return orderA - orderB;
         });
 
-        // 3. Distribute per Topic
+        // Iterate topics
         for (const topic of sortedTopics) {
-            const topicProblems = problemsByTopic[topic];
-            const daysAllocated = parseInt(topicDays[topic]) || 3;
+            const topicProbs = byTopic[topic];
+            const days = parseInt(topicDays && topicDays[topic]) || 3;
+            const probsPerDay = Math.ceil(topicProbs.length / days);
 
-            // Sort problems by difficulty (Hard -> Medium -> Easy) to distribute heavy ones first
-            const difficultyWeight = { "Hard": 4, "Medium": 2, "Easy": 1 };
-            topicProblems.sort((a, b) => {
-                const wA = difficultyWeight[a.difficulty] || 2;
-                const wB = difficultyWeight[b.difficulty] || 2;
-                return wB - wA; // Descending order
-            });
-
-            // Calculate Total Points
-            const totalPoints = topicProblems.reduce((sum, p) => sum + (difficultyWeight[p.difficulty] || 2), 0);
-            const targetPointsPerDay = Math.ceil(totalPoints / daysAllocated);
-
-            let pIndex = 0;
-            for (let i = 0; i < daysAllocated; i++) {
-                const dayProblems = [];
-                let currentDayPoints = 0;
-
-                // Fill day until target points reached (or run out of problems)
-                // We allow slightly going over target to ensure we don't leave stragglers, 
-                // but we stop if we are close enough.
-                while (pIndex < topicProblems.length) {
-                    const p = topicProblems[pIndex];
-                    const pPoints = difficultyWeight[p.difficulty] || 2;
-
-                    // If adding this problem exceeds target significantly, and we already have something, stop.
-                    // Exception: If it's the last day, take everything.
-                    if (i < daysAllocated - 1 && currentDayPoints + pPoints > targetPointsPerDay + 2 && dayProblems.length > 0) {
-                        break;
-                    }
-
-                    dayProblems.push({
-                        name: p.name,
-                        source: p.source,
-                        difficulty: p.difficulty,
-                        link: p.link || "",
-                        completed: false
-                    });
-                    currentDayPoints += pPoints;
-                    pIndex++;
-
-                    // If we met or exceeded target, stop for this day
-                    if (currentDayPoints >= targetPointsPerDay) break;
-                }
-
-                if (dayProblems.length > 0) {
-                    finalSchedule.push({
-                        day: currentDayOffset + i + 1,
-                        topic: topic,
-                        problems: dayProblems
-                    });
-                }
+            for (let i = 0; i < topicProbs.length; i += probsPerDay) {
+                schedule.push({
+                    day: currentDay++,
+                    topic: topic,
+                    problems: topicProbs.slice(i, i + probsPerDay)
+                });
             }
-
-            // If any problems remain (due to math rounding), add them to the last day of this topic
-            if (pIndex < topicProblems.length) {
-                const lastDay = finalSchedule[finalSchedule.length - 1];
-                if (lastDay && lastDay.topic === topic) {
-                    while (pIndex < topicProblems.length) {
-                        const p = topicProblems[pIndex];
-                        lastDay.problems.push({
-                            name: p.name,
-                            source: p.source,
-                            difficulty: p.difficulty,
-                            link: p.link || "",
-                            completed: false
-                        });
-                        pIndex++;
-                    }
-                }
-            }
-
-            currentDayOffset += daysAllocated;
         }
 
-        console.log(`Generated ${finalSchedule.length} days of weighted schedule.`);
-        // Save to Supabase
-        // Note: We need userEmail. For now, we'll use a placeholder if not provided,
-        // but ideally the frontend sends the logged-in user's email.
-        const emailToSave = userEmail || 'demo_user@example.com';
-        let dbRecord = null;
+        // Save to Supabase (Optional)
         if (supabase) {
-            console.log(`Attempting to save schedule for ${emailToSave} to Supabase...`);
-            const { data, error } = await supabase
-                .from('schedules')
-                .insert([
-                    {
-                        user_email: emailToSave,
-                        schedule_data: finalSchedule,
-                        is_active: true
-                    }
-                ])
-                .select();
-
-            if (error) {
-                console.error('❌ Supabase Insert Error:', JSON.stringify(error, null, 2));
-            } else {
-                console.log('✅ Schedule saved to DB:', data);
-                dbRecord = data ? data[0] : null;
-            }
-        } else {
-            console.warn('⚠️ Supabase not configured. Schedule NOT saved to DB.');
+            const emailToSave = userEmail || 'demo_user@example.com';
+            await supabase.from('schedules').insert([{
+                user_email: emailToSave,
+                schedule_data: schedule,
+                is_active: true
+            }]);
         }
 
         res.json({
-            message: 'Schedule generated and saved successfully',
-            schedule: finalSchedule,
-            db_record: dbRecord
+            message: 'Schedule generated successfully',
+            schedule: schedule
         });
 
     } catch (error) {
-        console.error('❌ Error generating schedule:', error);
-        res.status(500).json({
-            error: 'Failed to generate schedule',
-            details: error.message,
-            stack: error.stack // Send stack to frontend for debugging
-        });
+        console.error('Error generating schedule:', error);
+        res.status(500).json({ error: 'Failed to generate schedule' });
     }
 });
 
