@@ -197,12 +197,7 @@ async function processBatchWithGroq(problems) {
 
   } catch (error) {
     console.error('Batch AI Error:', error.message);
-    // Fallback: Return original with normalized topic
-    return problems.map(p => ({
-      ...p,
-      topic: normalizeTopic(p.topic),
-      difficulty: p.difficulty
-    }));
+    throw new Error(`Groq API Failed: ${error.message}`); // Rethrow to let frontend know
   }
 }
 
