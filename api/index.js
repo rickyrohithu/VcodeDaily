@@ -9,6 +9,10 @@ const axios = require('axios');
 
 const app = express();
 
+// Middleware (MUST be before routes)
+app.use(cors());
+app.use(express.json());
+
 // Supabase Setup
 // Supabase Setup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -100,9 +104,7 @@ app.post('/api/analyze-urls', async (req, res) => {
     }
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Middleware (Moved to top)
 
 // Configure Multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
