@@ -41,7 +41,7 @@ async function signIn(email, password) {
         return false;
     } else {
         // Save session (Supabase does this automatically in local storage)
-        window.location.href = 'dashboard.html';
+        window.location.href = 'tracker.html';
         return true;
     }
 }
