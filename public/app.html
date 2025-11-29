@@ -381,6 +381,10 @@
                 if (!response.ok) throw new Error(result.error || 'Fetch failed');
 
                 let allProblems = result.data.problems;
+                if (!allProblems || allProblems.length === 0) {
+                    alert('No problems found in the sheet. Please ensure the sheet is Public and has "Problem Name" and "Link" columns.');
+                    throw new Error('No problems found.');
+                }
                 currentProblems = []; // Reset
 
                 // 2. Client-Side Batching (To avoid Vercel 10s Timeout)
@@ -435,11 +439,12 @@
         function renderTopicSummary(summary) {
             const grid = document.getElementById('topicSummary');
             grid.innerHTML = '';
+            document.getElementById('resultsSection').style.display = 'block'; // Show section first
 
             const topics = Object.keys(summary);
 
             if (topics.length === 0) {
-                grid.innerHTML = '<p style="color:gray; text-align:center; grid-column:1/-1;">No topics found.</p>';
+                grid.innerHTML = '<p style="color:gray; text-align:center; grid-column:1/-1;">No topics found. Please check your sheet permissions or format.</p>';
                 return;
             }
 
@@ -552,7 +557,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.2</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.3</div>
 </body>
 
 </html>
