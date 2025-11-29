@@ -37,16 +37,80 @@ const parseCSV = (buffer) => {
     });
 };
 
-// Route: Upload and Process
+const axios = require('axios');
+// ... (existing code)
+
+// Helper to fetch CSV from URL
+async function fetchCsvFromUrl(url) {
+    try {
+        let fetchUrl = url;
+        if (url.includes('docs.google.com/spreadsheets')) {
+            if (!url.includes('/export')) {
+                fetchUrl = url.replace(/\/edit.*$/, '/export?format=csv');
+                if (fetchUrl === url) {
+                    fetchUrl = `${url.replace(/\/$/, '')}/export?format=csv`;
+                }
+            }
+        }
+
+        const response = await axios.get(fetchUrl, { responseType: 'arraybuffer' });
+        return response.data;
+    } catch (error) {
+        console.error(`Failed to fetch CSV from ${url}:`, error.message);
+        return null;
+    }
+}
+
+// Route: Analyze URLs
+app.post('/api/analyze-urls', async (req, res) => {
+    try {
+        const { urls } = req.body;
+        if (!urls || !Array.isArray(urls) || urls.length === 0) {
+            return res.status(400).json({ error: 'No URLs provided' });
+        }
+
+        console.log(`Processing ${urls.length} URLs...`);
+        const rawData = [];
+
+        for (const urlObj of urls) {
+            const { url, name } = urlObj;
+            if (!url) continue;
+
+            const buffer = await fetchCsvFromUrl(url);
+            if (buffer) {
+                const parsed = await parseCSV(buffer);
+                rawData.push({
+                    filename: name || 'Sheet',
+                    content: parsed
+                });
+            }
+        }
+
+        if (rawData.length === 0) {
+            return res.status(400).json({ error: 'Failed to fetch any valid CSV data' });
+        }
+
+        console.log('Sending data to Groq...');
+        const groqResponse = await processWithGroq(rawData);
+
+        res.json({
+            message: 'Analysis complete',
+            data: groqResponse
+        });
+
+    } catch (error) {
+        console.error('Error in /api/analyze-urls:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route: Upload and Process (Legacy)
 app.post('/api/upload', upload.array('files', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'No files uploaded' });
         }
 
-        console.log(`Received ${req.files.length} files.`);
-
-        // 1. Parse CSVs
         const rawData = [];
         for (const file of req.files) {
             const parsed = await parseCSV(file.buffer);
@@ -56,19 +120,12 @@ app.post('/api/upload', upload.array('files', 10), async (req, res) => {
             });
         }
 
-        // 2. Send to Groq
-        console.log('Sending parsed data to Groq...');
         const groqResponse = await processWithGroq(rawData);
-
-        // 3. Return response
-        res.json({
-            message: 'Analysis complete',
-            data: groqResponse
-        });
+        res.json({ message: 'Analysis complete', data: groqResponse });
 
     } catch (error) {
         console.error('Error in /api/upload:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -76,58 +133,39 @@ app.post('/api/upload', upload.array('files', 10), async (req, res) => {
 app.post('/api/generate-schedule', async (req, res) => {
     try {
         const { topicDays, problems } = req.body;
-
         console.log('Generating schedule for:', topicDays);
 
-        // MOCK SCHEDULE GENERATION (Placeholder for Groq call)
-        // In real app, we would send this data to Groq to get a smart schedule
-        const mockSchedule = [
-            {
-                day: 1,
-                topic: "Arrays & Hashing",
-                problems: [
-                    { name: "Two Sum", source: "Striver Sheet", difficulty: "Easy" },
-                    { name: "Contains Duplicate", source: "Blind 75", difficulty: "Easy" },
-                    { name: "Valid Anagram", source: "NeetCode 150", difficulty: "Easy" }
-                ]
-            },
-            {
-                day: 2,
-                topic: "Arrays & Hashing",
-                problems: [
-                    { name: "Group Anagrams", source: "Striver Sheet", difficulty: "Medium" },
-                    { name: "Top K Frequent Elements", source: "Blind 75", difficulty: "Medium" }
-                ]
-            },
-            {
-                day: 3,
-                topic: "Two Pointers",
-                problems: [
-                    { name: "Valid Palindrome", source: "Striver Sheet", difficulty: "Easy" },
-                    { name: "3Sum", source: "NeetCode 150", difficulty: "Medium" }
-                ]
-            },
-            {
-                day: 4,
-                topic: "Two Pointers",
-                problems: [
-                    { name: "Container With Most Water", source: "Blind 75", difficulty: "Medium" },
-                    { name: "Trapping Rain Water", source: "Striver Sheet", difficulty: "Hard" }
-                ]
-            },
-            {
-                day: 5,
-                topic: "Dynamic Programming",
-                problems: [
-                    { name: "Climbing Stairs", source: "Striver Sheet", difficulty: "Easy" },
-                    { name: "Min Cost Climbing Stairs", source: "NeetCode 150", difficulty: "Easy" }
-                ]
+        // Simple Round-Robin Schedule Generation
+        // In a real app, we'd use Groq here too, but for now we'll use logic
+
+        const schedule = [];
+        let currentDay = 1;
+
+        // Group by topic
+        const byTopic = {};
+        problems.forEach(p => {
+            const t = p.topic || 'Uncategorized';
+            if (!byTopic[t]) byTopic[t] = [];
+            byTopic[t].push(p);
+        });
+
+        // Iterate topics
+        for (const [topic, topicProbs] of Object.entries(byTopic)) {
+            const days = parseInt(topicDays[topic]) || 3;
+            const probsPerDay = Math.ceil(topicProbs.length / days);
+
+            for (let i = 0; i < topicProbs.length; i += probsPerDay) {
+                schedule.push({
+                    day: currentDay++,
+                    topic: topic,
+                    problems: topicProbs.slice(i, i + probsPerDay)
+                });
             }
-        ];
+        }
 
         res.json({
             message: 'Schedule generated successfully',
-            schedule: mockSchedule
+            schedule: schedule
         });
 
     } catch (error) {

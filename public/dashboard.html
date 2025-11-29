@@ -344,89 +344,94 @@
             analyseBtn.disabled = true;
 
             try {
-                const allProblems = [];
-
-                // 1. Process URLs
+                const urls = [];
                 const sheetPairs = Array.from(document.querySelectorAll('.sheet-pair'));
+
                 for (const pair of sheetPairs) {
                     const url = pair.querySelector('.sheet-url').value.trim();
                     const name = pair.querySelector('.sheet-name').value.trim() || 'Sheet';
-
                     if (url) {
-                        try {
-                            // Note: This requires backend running on localhost:3000 if opening file locally
-                            // We try relative path first, assuming deployment or proxy
-                            const apiUrl = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
-                                ? 'http://localhost:3000/api/proxy-sheet'
-                                : '/api/proxy-sheet';
-
-                            const response = await fetch(apiUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ url })
-                            });
-
-                            const result = await response.json();
-                            if (!response.ok) throw new Error(result.error || 'Fetch failed');
-
-                            const workbook = XLSX.read(result.data, { type: 'base64' });
-                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                            const problems = extractProblemsFromRowData(jsonData, name);
-                            allProblems.push(...problems);
-                        } catch (e) {
-                            console.error(e);
-                            // Fallback for demo if backend fails? No, just alert.
-                            // alert(`Failed to fetch ${name}. Ensure backend is running.`);
-                        }
+                        urls.push({ url, name });
                     }
                 }
 
-                // 2. Process Uploads
-                for (const file of selectedFiles) {
-                    const data = await readFileAsArrayBuffer(file);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-                    const problems = extractProblemsFromRowData(jsonData, file.name);
-                    allProblems.push(...problems);
+                if (urls.length === 0) {
+                    throw new Error('Please enter at least one Google Sheet URL.');
                 }
 
-                if (allProblems.length === 0) throw new Error('No valid problems found.');
+                // Call Backend API
+                const apiUrl = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
+                    ? 'http://localhost:3000/api/analyze-urls'
+                    : '/api/analyze-urls';
 
-                // 3. AI Analysis
-                analyseBtn.textContent = 'Analyzing with AI...';
-                const BATCH_SIZE = 25;
-                currentProblems = [];
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls })
+                });
 
-                for (let i = 0; i < allProblems.length; i += BATCH_SIZE) {
-                    const chunk = allProblems.slice(i, i + BATCH_SIZE);
-                    const apiUrl = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
-                        ? 'http://localhost:3000/api/analyze-batch'
-                        : '/api/analyze-batch';
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Analysis failed');
 
-                    try {
-                        const res = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ problems: chunk })
-                        });
-                        const data = await res.json();
-                        if (data.problems) currentProblems.push(...data.problems);
-                        else currentProblems.push(...chunk);
-                    } catch (e) {
-                        console.error(e);
-                        currentProblems.push(...chunk);
-                    }
-                }
+                const { summary, problems } = result.data;
+                currentProblems = problems;
 
-                renderTopicSummary(currentProblems);
+                renderTopicSummary(summary);
 
             } catch (error) {
                 alert('Analysis failed: ' + error.message);
+                console.error(error);
             } finally {
-                analyseBtn.textContent = 'Analyse Sheets';
+                analyseBtn.textContent = 'Analyse Sheet';
                 analyseBtn.disabled = false;
             }
         });
+
+        function renderTopicSummary(summary) {
+            const grid = document.getElementById('topicSummary');
+            grid.innerHTML = '';
+
+            // Defined order or just iterate keys
+            const topics = Object.keys(summary);
+
+            if (topics.length === 0) {
+                grid.innerHTML = '<p style="color:gray; text-align:center; grid-column:1/-1;">No topics found.</p>';
+                return;
+            }
+
+            topics.forEach(topic => {
+                const counts = summary[topic];
+                const total = counts.easy + counts.medium + counts.hard;
+                if (total === 0) return;
+
+                const card = document.createElement('div');
+                card.className = 'topic-card';
+                card.innerHTML = `
+                    <h3 class="topic-title">${topic}</h3>
+                    <div class="topic-stats">
+                        <span>Total: ${total}</span>
+                        <div style="display:flex; gap:8px;">
+                            <span style="color:#4ade80">E:${counts.easy}</span>
+                            <span style="color:#facc15">M:${counts.medium}</span>
+                            <span style="color:#f87171">H:${counts.hard}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.7rem; color:#9ca3af;">Days</label>
+                            <input type="number" class="input-field topic-days-input" data-topic="${topic}" value="3" min="1" style="padding: 5px; font-size: 0.8rem;" />
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.7rem; color:#9ca3af;">Priority</label>
+                            <input type="number" class="input-field topic-order-input" data-topic="${topic}" value="1" min="1" style="padding: 5px; font-size: 0.8rem;" />
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('resultsSection').style.display = 'block';
+        }
 
         // ---------- Generate Schedule ----------
         document.getElementById('scheduleBtn').addEventListener('click', async () => {
@@ -476,59 +481,7 @@
             });
         }
 
-        function extractProblemsFromRowData(rows, source) {
-            const problems = [];
-            rows.forEach(row => {
-                if (!row || row.length === 0) return;
-                const hasLink = row.some(v => v && v.toString().includes('http'));
-                const hasName = row.some(v => v && v.toString().length > 3 && !v.toString().match(/^\d+$/));
-                if (!hasLink && !hasName) return;
-
-                const name = row.find(v => v && v.toString().length < 100 && !v.toString().includes('http') && !v.toString().match(/^\d+$/)) || "Unknown";
-                const link = row.find(v => v && v.toString().includes('http')) || "";
-                let topic = row.find(v => v && v.toString() !== name && v.toString() !== link && v.toString().length < 40 && !v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Uncategorized";
-                const difficulty = row.find(v => v && v.toString().match(/^(Easy|Medium|Hard)$/i)) || "Medium";
-                problems.push({ name: name.trim(), link, topic, difficulty, source });
-            });
-            return problems;
-        }
-
-        function renderTopicSummary(problems) {
-            const STANDARD_TOPICS = ["Arrays", "Strings", "Linked Lists", "Stacks", "Queues", "Trees", "Heaps / Priority Queues", "Hashing", "Graphs", "Dynamic Programming (DP)", "Recursion & Backtracking", "Sorting & Searching", "Greedy Algorithms"];
-            const summary = {};
-            STANDARD_TOPICS.forEach(t => summary[t] = { easy: 0, medium: 0, hard: 0 });
-
-            problems.forEach(p => {
-                let topic = p.topic.toLowerCase();
-                let matched = STANDARD_TOPICS.find(t => topic.includes(t.toLowerCase().split(' ')[0])) || "Arrays";
-                if (summary[matched]) {
-                    const diff = (p.difficulty || "Medium").toLowerCase();
-                    if (summary[matched][diff] !== undefined) summary[matched][diff]++;
-                }
-            });
-
-            const grid = document.getElementById('topicSummary');
-            grid.innerHTML = '';
-            STANDARD_TOPICS.forEach(topic => {
-                const counts = summary[topic];
-                if (counts.easy + counts.medium + counts.hard === 0) return;
-                const card = document.createElement('div');
-                card.className = 'topic-card';
-                card.innerHTML = `
-                    <h3 class="topic-title">${topic}</h3>
-                    <div class="topic-stats">
-                        <span>Total: ${counts.easy + counts.medium + counts.hard}</span>
-                        <div style="display:flex; gap:8px;">
-                            <span style="color:#4ade80">${counts.easy}</span>
-                            <span style="color:#facc15">${counts.medium}</span>
-                            <span style="color:#f87171">${counts.hard}</span>
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-            document.getElementById('resultsSection').style.display = 'block';
-        }
+        // Legacy helpers removed as backend handles analysis now.
 
         function renderSchedule(schedule) {
             const container = document.createElement('div');
