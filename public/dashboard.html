@@ -6,57 +6,285 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard – DSA Sheet Tracker</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    <link rel="stylesheet" href="style.css" />
+    <style>
+        :root {
+            --primary: #ffffff;
+            --primary-hover: #f3f4f6;
+            --bg-dark: #000000;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Mesh Gradient Overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(124, 58, 237, 0.15), transparent 25%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle top highlight */
+        .glass-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to bottom right, #fff, #ccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .description {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .sheet-pair {
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
+        }
+
+        .input-field::placeholder {
+            color: #6b7280;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: black;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            width: auto;
+            display: inline-block;
+        }
+
+        .btn-ghost:hover {
+            color: white;
+        }
+
+        .results-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--glass-border);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .topic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .topic-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .topic-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #e5e7eb;
+            margin-bottom: 0.5rem;
+        }
+
+        .topic-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .logout-link {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.875rem;
+        }
+
+        .logout-link a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .logout-link a:hover {
+            color: white;
+        }
+    </style>
 </head>
 
 <body>
-    <div class="centered-container glass">
-        <h1 class="title">Manage Your Sheets</h1>
-        <p class="description">
-            Provide up to 10 sheet name+URL pairs and upload CSV files, then generate a schedule.
-        </p>
+    <div class="glass-card">
+        <div class="header">
+            <h1 class="title">Manage Your Sheets</h1>
+            <p class="description">
+                Add up to 10 sheets to track your progress
+            </p>
+        </div>
 
         <!-- Sheet Inputs -->
-        <div class="section" style="margin-bottom:1.5rem;">
-            <label class="section-label">Sheets (Name + URL, up to 10)</label>
-            <div id="sheetsContainer">
-                <div class="sheet-pair">
-                    <input type="text" class="sheet-name" placeholder="Sheet Name" />
-                    <input type="url" class="sheet-url" placeholder="Sheet URL" />
-                </div>
+        <div id="sheetsContainer" class="input-group">
+            <div class="sheet-pair">
+                <input type="url" class="input-field sheet-url"
+                    placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)"
+                    style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
             </div>
-            <button type="button" id="addSheetBtn" class="btn-primary"
-                style="width: auto; padding: 0.6rem 1.2rem; margin-top: 5px; background: rgba(255,255,255,0.2);">
-                + Add Sheet
+        </div>
+
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <button type="button" id="addSheetBtn" class="btn btn-ghost">
+                + Add another sheet
             </button>
         </div>
 
         <!-- Main Actions -->
-        <button class="btn-primary" id="analyseBtn">Analyse Sheets</button>
-        <button class="btn-primary" id="scheduleBtn" style="background: #10b981;">Generate Schedule</button>
+        <button class="btn btn-primary" id="analyseBtn">Analyse Sheet</button>
 
-        <!-- CSV Upload -->
-        <div class="section" style="margin-top:1.5rem;">
-            <button type="button" id="uploadCsvBtn" class="btn-primary btn-secondary">Upload CSV Files</button>
-            <input type="file" id="csvUpload" accept=".csv" multiple style="display:none;" />
-            <ul id="uploadLog" style="margin-top:0.5rem; font-size:0.85rem; color:rgba(255,255,255,0.8);"></ul>
-        </div>
+        <!-- Hidden CSV Upload (kept for functionality but hidden from main view for cleanliness) -->
+        <input type="file" id="csvUpload" accept=".csv" multiple style="display:none;" />
 
         <!-- Results Section -->
         <div id="resultsSection" class="results-section" style="display: none;">
-            <h2 style="font-size:1.2rem; margin-bottom:10px;">Topic Analysis</h2>
+            <h2 style="font-size: 1.25rem; font-weight: 600; text-align: center; margin-bottom: 1.5rem;">Topic Analysis
+            </h2>
             <div id="topicSummary" class="topic-grid"></div>
+
+            <button class="btn btn-primary" id="scheduleBtn"
+                style="margin-top: 2rem; background: #2563eb; color: white;">Generate Schedule</button>
         </div>
 
-        <!-- Download Links -->
-        <div id="downloadLinksContainer" style="margin-top:1rem; display:none;">
-            <h3 style="color:white; font-size:1rem;">Download CSV files:</h3>
-            <ul id="downloadList" style="color:white; padding-left:20px;"></ul>
+        <div class="logout-link">
+            <a href="login.html">Logout</a>
         </div>
-
-        <p class="switch-link"><a href="login.html">Logout</a></p>
     </div>
 
     <script>
@@ -101,8 +329,8 @@
             const div = document.createElement('div');
             div.className = 'sheet-pair';
             div.innerHTML = `
-                <input type="text" class="sheet-name" placeholder="Sheet Name" />
-                <input type="url" class="sheet-url" placeholder="Sheet URL" />
+                <input type="url" class="input-field sheet-url" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)" style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
             `;
             sheetsContainer.appendChild(div);
         });
@@ -287,14 +515,14 @@
                 const card = document.createElement('div');
                 card.className = 'topic-card';
                 card.innerHTML = `
-                    <h3 style="margin:0; font-size:0.9rem; color:#60a5fa;">${topic}</h3>
-                    <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin:5px 0;">
+                    <h3 class="topic-title">${topic}</h3>
+                    <div class="topic-stats">
                         <span>Total: ${counts.easy + counts.medium + counts.hard}</span>
-                        <span>E:${counts.easy} M:${counts.medium} H:${counts.hard}</span>
-                    </div>
-                    <div style="display:flex; gap:5px;">
-                        <input type="number" class="topic-days-input" data-topic="${topic}" value="3" style="width:50%; padding:4px; border-radius:4px; border:none;">
-                        <input type="number" class="topic-order-input" data-topic="${topic}" value="1" style="width:50%; padding:4px; border-radius:4px; border:none;">
+                        <div style="display:flex; gap:8px;">
+                            <span style="color:#4ade80">${counts.easy}</span>
+                            <span style="color:#facc15">${counts.medium}</span>
+                            <span style="color:#f87171">${counts.hard}</span>
+                        </div>
                     </div>
                 `;
                 grid.appendChild(card);
