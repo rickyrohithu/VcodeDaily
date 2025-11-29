@@ -287,6 +287,18 @@
         </div>
     </div>
 
+    <!-- Supabase & Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth.js"></script>
+    <script>
+        // Check session on load
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof checkSession === 'function') {
+                checkSession();
+            }
+        });
+    </script>
+
     <script>
         // ---------- CSV Upload handling ----------
         const csvUpload = document.getElementById('csvUpload');
@@ -515,7 +527,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v2.0</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v2.1</div>
 </body>
 
 </html>
