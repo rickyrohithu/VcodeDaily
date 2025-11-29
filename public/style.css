@@ -1,16 +1,16 @@
 /* style.css - Blue Theme */
 :root {
-  --primary-color: #3b82f6;
-  /* Bright Blue */
-  --primary-hover: #2563eb;
-  --bg-gradient: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #7c3aed 100%);
-  /* Deep Blue to Purple */
-  --glass-bg: rgba(255, 255, 255, 0.15);
-  --glass-border: rgba(255, 255, 255, 0.2);
+  --primary-color: #ffffff;
+  /* White */
+  --primary-hover: #e5e7eb;
+  --bg-gradient: radial-gradient(ellipse at center, #27272a, #18181b, #000000);
+  /* Zinc/Black Gradient */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
   --text-color: #ffffff;
-  --input-bg: #ffffff;
-  --input-text: #1f2937;
-  --placeholder-color: #6b7280;
+  --input-bg: rgba(24, 24, 27, 0.5);
+  --input-text: #ffffff;
+  --placeholder-color: #9ca3af;
 }
 
 * {
@@ -89,8 +89,8 @@ body {
 .input-field:focus,
 .sheet-name:focus,
 .sheet-url:focus {
-  outline: 2px solid var(--primary-color);
-  background: #ffffff;
+  outline: 2px solid #ffffff;
+  background: var(--input-bg);
 }
 
 ::placeholder {
@@ -103,7 +103,7 @@ body {
   border: none;
   border-radius: 8px;
   background: var(--primary-color);
-  color: white;
+  color: #000000;
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
