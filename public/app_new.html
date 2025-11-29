@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard – DSA Sheet Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #ffffff;
+            --primary-hover: #f3f4f6;
+            --bg-dark: #000000;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 1) 0, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Mesh Gradient Overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 15% 50%, rgba(76, 29, 149, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(124, 58, 237, 0.15), transparent 25%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle top highlight */
+        .glass-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to bottom right, #fff, #ccc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .description {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .sheet-pair {
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
+        }
+
+        .input-field::placeholder {
+            color: #6b7280;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: black;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            width: auto;
+            display: inline-block;
+        }
+
+        .btn-ghost:hover {
+            color: white;
+        }
+
+        .results-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--glass-border);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .topic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .topic-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .topic-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #e5e7eb;
+            margin-bottom: 0.5rem;
+        }
+
+        .topic-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .logout-link {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.875rem;
+        }
+
+        .logout-link a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+
+        .logout-link a:hover {
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-card">
+        <div class="header">
+            <h1 class="title">Manage Your Sheets</h1>
+            <p class="description">
+                Add up to 10 sheets to track your progress
+            </p>
+        </div>
+
+        <!-- Sheet Inputs -->
+        <div id="sheetsContainer" class="input-group">
+            <!-- Input 1 -->
+            <div class="sheet-pair">
+                <input type="url" class="input-field sheet-url"
+                    placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)"
+                    style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
+            </div>
+            <!-- Input 2 (Default) -->
+            <div class="sheet-pair">
+                <input type="url" class="input-field sheet-url"
+                    placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)"
+                    style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <button type="button" id="addSheetBtn" class="btn btn-ghost">
+                + Add another sheet
+            </button>
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+            <input type="password" id="apiKeyInput" class="input-field"
+                placeholder="Enter Groq API Key (Optional - overrides server key)" style="border-color: #a78bfa;" />
+            <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 5px;">
+                Don't have one? Get it free at <a href="https://console.groq.com/keys" target="_blank"
+                    style="color: #a78bfa;">console.groq.com</a>
+            </p>
+        </div>
+
+        <!-- Main Actions -->
+        <button class="btn btn-primary" id="analyseBtn">Analyse Sheet</button>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <h2 style="font-size: 1.25rem; font-weight: 600; text-align: center; margin-bottom: 1.5rem;">Topic Analysis
+            </h2>
+            <div id="topicSummary" class="topic-grid"></div>
+
+            <button class="btn btn-primary" id="scheduleBtn"
+                style="margin-top: 2rem; background: #2563eb; color: white;">Generate Schedule</button>
+        </div>
+
+        <div class="logout-link">
+            <a id="logoutBtn">Logout</a>
+        </div>
+    </div>
+
+    <script>
+        // --- AUTHENTICATION ---
+        const SUPABASE_URL = 'https://smiqyswcsrytwpudxhws.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtaXF5c3djc3J5dHdwdWR4aHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMTI0MTUsImV4cCI6MjA3OTg4ODQxNX0.JZUEjxrGAejZZ_1fiM15laBullQBOIYSaA4xXAq6ge8';
+
+        let supabase = null;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } catch (e) {
+            console.error('Supabase Init Failed', e);
+        }
+
+        async function checkSession() {
+            if (!supabase) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+            } else {
+                console.log('User:', session.user.email);
+                localStorage.setItem('userEmail', session.user.email);
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            if (supabase) await supabase.auth.signOut();
+            window.location.href = 'index.html';
+        });
+
+        // Run Auth Check
+        checkSession();
+
+
+        // --- APP LOGIC ---
+
+        // Dynamic Inputs
+        const sheetsContainer = document.getElementById('sheetsContainer');
+        const addSheetBtn = document.getElementById('addSheetBtn');
+
+        addSheetBtn.addEventListener('click', () => {
+            if (sheetsContainer.children.length >= 10) {
+                alert('Maximum 10 sheets allowed.');
+                return;
+            }
+            const div = document.createElement('div');
+            div.className = 'sheet-pair';
+            div.innerHTML = `
+                <input type="url" class="input-field sheet-url" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)" style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
+            `;
+            sheetsContainer.appendChild(div);
+        });
+
+        // Analyse Sheets
+        let currentProblems = [];
+        const analyseBtn = document.getElementById('analyseBtn');
+
+        analyseBtn.addEventListener('click', async () => {
+            analyseBtn.textContent = 'Fetching Sheets...';
+            analyseBtn.disabled = true;
+            document.getElementById('resultsSection').style.display = 'none'; // Clear previous results
+            document.getElementById('topicSummary').innerHTML = ''; // Clear grid
+
+            const userApiKey = document.getElementById('apiKeyInput').value.trim();
+
+            try {
+                const urls = [];
+                const sheetPairs = Array.from(document.querySelectorAll('.sheet-pair'));
+
+                for (const pair of sheetPairs) {
+                    const url = pair.querySelector('.sheet-url').value.trim();
+                    const name = pair.querySelector('.sheet-name').value.trim() || 'Sheet';
+                    if (url) {
+                        urls.push({ url, name });
+                    }
+                }
+
+                if (urls.length === 0) {
+                    throw new Error('Please enter at least one Google Sheet URL.');
+                }
+
+                // 1. Get Raw List (Fast)
+                const response = await fetch('/api/analyze-urls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls })
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Fetch failed');
+
+                let allProblems = result.data.problems;
+                if (!allProblems || allProblems.length === 0) {
+                    alert('No problems found in the sheet. Please ensure the sheet is Public and has "Problem Name" and "Link" columns.');
+                    throw new Error('No problems found.');
+                }
+                currentProblems = []; // Reset
+
+                // 2. Client-Side Batching (To avoid Vercel 10s Timeout)
+                const BATCH_SIZE = 20;
+                const totalBatches = Math.ceil(allProblems.length / BATCH_SIZE);
+
+                for (let i = 0; i < totalBatches; i++) {
+                    analyseBtn.textContent = `Analyzing ${i + 1}/${totalBatches}...`;
+
+                    const batch = allProblems.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+
+                    try {
+                        const batchRes = await fetch('/api/analyze-batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                problems: batch,
+                                apiKey: userApiKey // Send user key
+                            })
+                        });
+                        const batchData = await batchRes.json();
+
+                        if (batchData.problems) {
+                            currentProblems = currentProblems.concat(batchData.problems);
+                        } else {
+                            throw new Error('Invalid batch response');
+                        }
+                    } catch (e) {
+                        console.error('Batch failed', e);
+                        alert(`Analysis Error: ${e.message}. Please check your API Key or Sheet.`);
+                        throw e; // Stop processing
+                    }
+                }
+
+                // 3. Build Summary Locally
+                const summary = {};
+                currentProblems.forEach(p => {
+                    const t = p.topic || 'Uncategorized';
+                    if (!summary[t]) summary[t] = { easy: 0, medium: 0, hard: 0 };
+                    const d = (p.difficulty || 'Medium').toLowerCase();
+                    if (summary[t][d] !== undefined) summary[t][d]++;
+                });
+
+                renderTopicSummary(summary);
+                analyseBtn.textContent = 'Analysis Complete';
+
+            } catch (error) {
+                alert('Analysis failed: ' + error.message);
+                console.error(error);
+                analyseBtn.textContent = 'Analyse Sheet';
+            } finally {
+                analyseBtn.disabled = false;
+            }
+        });
+
+        function renderTopicSummary(summary) {
+            const grid = document.getElementById('topicSummary');
+            grid.innerHTML = '';
+            document.getElementById('resultsSection').style.display = 'block'; // Show section first
+
+            const topics = Object.keys(summary);
+
+            if (topics.length === 0) {
+                grid.innerHTML = '<p style="color:gray; text-align:center; grid-column:1/-1;">No topics found. Please check your sheet permissions or format.</p>';
+                return;
+            }
+
+            topics.forEach(topic => {
+                const counts = summary[topic];
+                const total = counts.easy + counts.medium + counts.hard;
+                if (total === 0) return;
+
+                // Filter problems for this topic
+                const topicProblems = currentProblems.filter(p => p.topic === topic);
+
+                const card = document.createElement('div');
+                card.className = 'topic-card';
+                card.innerHTML = `
+                    <h3 class="topic-title">${topic}</h3>
+                    <div class="topic-stats">
+                        <span>Total: ${total}</span>
+                        <div style="display:flex; gap:8px;">
+                            <span style="color:#4ade80">E:${counts.easy}</span>
+                            <span style="color:#facc15">M:${counts.medium}</span>
+                            <span style="color:#f87171">H:${counts.hard}</span>
+                        </div>
+                    </div>
+
+                    <!-- Problem List (Collapsible) -->
+                    <details style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                        <summary style="cursor: pointer; font-size: 0.8rem; color: #60a5fa; outline: none;">View Problems List</summary>
+                        <ul style="max-height: 200px; overflow-y: auto; margin-top: 10px; padding-left: 0; list-style: none;">
+                            ${topicProblems.map(p => `
+                                <li style="margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+                                    <a href="${p.link}" target="_blank" style="color: #d1d5db; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;">${p.name}</a>
+                                    <span style="font-size: 0.7rem; color: ${p.difficulty === 'Easy' ? '#4ade80' : p.difficulty === 'Medium' ? '#facc15' : '#f87171'};">
+                                        ${p.difficulty}
+                                    </span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </details>
+
+                    <div style="margin-top: 15px; display: flex; gap: 10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:0.7rem; color:#9ca3af;">Days</label>
+                            <input type="number" class="input-field topic-days-input" data-topic="${topic}" value="3" min="1" style="padding: 5px; font-size: 0.8rem;" />
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:0.7rem; color:#9ca3af;">Priority</label>
+                            <input type="number" class="input-field topic-order-input" data-topic="${topic}" value="1" min="1" style="padding: 5px; font-size: 0.8rem;" />
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        // Generate Schedule
+        document.getElementById('scheduleBtn').addEventListener('click', async () => {
+            if (!currentProblems.length) return alert('Analyse sheets first!');
+
+            const btn = document.getElementById('scheduleBtn');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+
+            const topicDays = {};
+            const topicOrder = {};
+            document.querySelectorAll('.topic-days-input').forEach(i => topicDays[i.dataset.topic] = parseInt(i.value) || 3);
+            document.querySelectorAll('.topic-order-input').forEach(i => topicOrder[i.dataset.topic] = parseInt(i.value) || 999);
+
+            try {
+                const apiUrl = '/api/generate-schedule';
+
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        topicDays, topicOrder, problems: currentProblems,
+                        userEmail: localStorage.getItem('userEmail') || 'guest@example.com'
+                    })
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error);
+
+                renderSchedule(result.schedule);
+            } catch (e) {
+                alert('Schedule failed: ' + e.message);
+            } finally {
+                btn.textContent = 'Generate Schedule';
+                btn.disabled = false;
+            }
+        });
+
+        function renderSchedule(schedule) {
+            const container = document.createElement('div');
+            container.className = 'schedule-container';
+            container.innerHTML = '<h2 style="margin-bottom:1rem;">Your Schedule</h2>';
+            schedule.forEach(day => {
+                const dayDiv = document.createElement('div');
+                dayDiv.style.background = 'rgba(255,255,255,0.1)';
+                dayDiv.style.padding = '10px';
+                dayDiv.style.marginBottom = '10px';
+                dayDiv.style.borderRadius = '8px';
+                const probs = day.problems.map(p => `<li><a href="${p.link}" target="_blank" style="color:#60a5fa;">${p.name}</a> <span style="font-size:0.8rem; opacity:0.7;">(${p.difficulty})</span></li>`).join('');
+                dayDiv.innerHTML = `<h3 style="margin:0; font-size:1rem;">Day ${day.day}: ${day.topic}</h3><ul style="padding-left:20px; margin-top:5px;">${probs}</ul>`;
+                container.appendChild(dayDiv);
+            });
+            const old = document.querySelector('.schedule-container');
+            if (old) old.remove();
+            document.querySelector('.glass-card').appendChild(container);
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.5</div>
+</body>
+
+</html>

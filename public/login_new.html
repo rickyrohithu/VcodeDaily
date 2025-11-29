@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Login - DSA Sheet Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <style>
+        /* style.css - Dark Glassmorphism Theme */
+        :root {
+            --primary-color: #ffffff;
+            --primary-hover: #e5e7eb;
+            /* Dark Radial Gradient matching the Next.js app */
+            --bg-gradient: radial-gradient(ellipse at center, #27272a, #18181b, #000000);
+
+            /* Glass Effect */
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+
+            --text-color: #ffffff;
+
+            /* Dark Inputs */
+            --input-bg: rgba(24, 24, 27, 0.5);
+            --input-border: rgba(255, 255, 255, 0.2);
+            /* White tint border */
+            --input-text: #ffffff;
+            --placeholder-color: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 24px;
+            /* Larger radius */
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            width: 90%;
+            max-width: 550px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .title {
+            font-size: 2.25rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.75rem;
+            color: #ffffff;
+            letter-spacing: -0.025em;
+        }
+
+        .description {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            color: #9ca3af;
+            /* Gray-400 */
+            font-size: 0.875rem;
+        }
+
+        .section-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .sheet-pair {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .input-field,
+        .sheet-name,
+        .sheet-url {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
+            background: var(--input-bg);
+            color: var(--input-text);
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            margin-bottom: 1rem;
+        }
+
+        .input-field:focus,
+        .sheet-name:focus,
+        .sheet-url:focus {
+            outline: none;
+            border-color: #ffffff;
+            /* White */
+            box-shadow: 0 0 0 1px #ffffff;
+        }
+
+        ::placeholder {
+            color: var(--placeholder-color);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: #ffffff;
+            color: #000000;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #f3f4f6;
+            transform: scale(1.02);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .switch-link {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .switch-link a {
+            color: #9ca3af;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .switch-link a:hover {
+            color: white;
+        }
+
+        /* Results Section */
+        .results-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 2rem;
+            margin-top: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .topic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .topic-card {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .schedule-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="centered-container glass">
+        <h1 class="title">Welcome Back</h1>
+        <form id="loginForm">
+            <input type="email" id="email" placeholder="Email" required class="input-field" />
+            <input type="password" id="password" placeholder="Password" required class="input-field" />
+            <button type="submit" class="btn-primary" id="loginBtn">Login</button>
+        </form>
+        <p class="switch-link">Don't have an account? <a href="signup.html">Sign Up</a></p>
+        <p style="text-align: center; color: #ef4444; margin-top: 20px; font-size: 1.2rem; font-weight: bold;">I AM
+            UPDATED v2.1 (RED)</p>
+    </div>
+
+    <!-- Supabase & Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="auth_new.js"></script>
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            loginBtn.textContent = 'Logging in...';
+            loginBtn.disabled = true;
+
+            const success = await signIn(email, password);
+
+            if (success) {
+                window.location.href = 'app_new.html';
+            } else {
+                loginBtn.textContent = 'Login';
+                loginBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>
