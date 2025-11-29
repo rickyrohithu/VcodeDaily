@@ -45,10 +45,13 @@ async function processWithGroq(rawData) {
     // STRICTLY Clean filename: remove .csv, .xlsx, .xls (case insensitive)
     let cleanSource = file.filename.replace(/\.(csv|xlsx|xls)$/i, '').trim();
 
-    file.content.forEach(row => {
+    file.content.forEach(rawRow => {
+      // Ensure row is an array of values (csv-parser returns objects by default)
+      const row = Array.isArray(rawRow) ? rawRow : Object.values(rawRow);
+
       // Row is array: ['Two Sum', 'http...', 'Easy', 'Arrays']
       // Find the name (longest string that isn't a URL)
-      const name = row.find(v => v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/));
+      const name = row.find(v => v && v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/));
       const link = row.find(v => v.startsWith('http')) || '';
 
       // Try to find a Topic (shorter string, not name, not link, not difficulty)
