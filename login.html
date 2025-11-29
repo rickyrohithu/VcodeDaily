@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - DSA Sheet Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="centered-container glass">
+        <h1 class="title">Welcome Back</h1>
+        <form id="loginForm" onsubmit="event.preventDefault(); window.location.href='main.html';">
+            <input type="email" placeholder="Email" required class="input-field" />
+            <input type="password" placeholder="Password" required class="input-field" />
+            <button type="submit" class="btn-primary">Login</button>
+        </form>
+        <p class="switch-link">Don't have an account? <a href="signup.html">Sign Up</a></p>
+    </div>
+</body>
+</html>
