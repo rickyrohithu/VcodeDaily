@@ -407,11 +407,12 @@
                         if (batchData.problems) {
                             currentProblems = currentProblems.concat(batchData.problems);
                         } else {
-                            currentProblems = currentProblems.concat(batch); // Fallback to raw
+                            throw new Error('Invalid batch response');
                         }
                     } catch (e) {
                         console.error('Batch failed', e);
-                        currentProblems = currentProblems.concat(batch); // Fallback
+                        alert(`Analysis Error: ${e.message}. Please check your API Key or Sheet.`);
+                        throw e; // Stop processing
                     }
                 }
 
@@ -557,7 +558,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.3</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.4</div>
 </body>
 
 </html>
