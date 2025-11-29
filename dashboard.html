@@ -14,7 +14,7 @@
             theme: {
                 extend: {
                     colors: {
-                        primary: '#3b82f6',
+                        primary: '#ffffff',
                     }
                 }
             }
@@ -22,7 +22,7 @@
     </script>
     <style>
         body {
-            background: radial-gradient(ellipse at center, #111827, #1a1b26, #000000);
+            background: radial-gradient(ellipse at center, #27272a, #18181b, #000000);
             color: white;
             font-family: 'Inter', sans-serif;
         }
@@ -49,7 +49,7 @@
         <div class="space-y-4 mb-8" id="sheetsContainer">
             <div class="sheet-pair space-y-2">
                 <input type="url"
-                    class="sheet-url w-full bg-[#1a1b26]/50 border border-purple-500/30 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                    class="sheet-url w-full bg-[#18181b]/50 border border-white/20 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all"
                     placeholder="Paste Google Sheet URL (Make sure it's Public)" />
                 <input type="text"
                     class="sheet-name w-full bg-transparent border-none text-xs text-gray-500 focus:text-gray-300 px-5 focus:outline-none"
@@ -74,7 +74,7 @@
             <div id="topicSummary" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
 
             <button id="scheduleBtn"
-                class="w-full mt-6 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition-all">
+                class="w-full mt-6 bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-all">
                 Generate Schedule
             </button>
         </div>
@@ -98,7 +98,7 @@
             const div = document.createElement('div');
             div.className = 'sheet-pair space-y-2';
             div.innerHTML = `
-                <input type="url" class="sheet-url w-full bg-[#1a1b26]/50 border border-purple-500/30 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="url" class="sheet-url w-full bg-[#18181b]/50 border border-white/20 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
                 <input type="text" class="sheet-name w-full bg-transparent border-none text-xs text-gray-500 focus:text-gray-300 px-5 focus:outline-none" placeholder="Sheet Name (Optional)" />
             `;
             sheetsContainer.appendChild(div);
@@ -214,7 +214,7 @@
                 const card = document.createElement('div');
                 card.className = 'bg-black/20 p-4 rounded-xl border border-white/5';
                 card.innerHTML = `
-                    <h3 class="text-blue-300 text-sm font-semibold mb-2 truncate">${topic}</h3>
+                    <h3 class="text-gray-300 text-sm font-semibold mb-2 truncate">${topic}</h3>
                     <div class="flex justify-between text-xs text-gray-400">
                         <span>T: ${counts.easy + counts.medium + counts.hard}</span>
                         <div class="space-x-1">

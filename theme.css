@@ -1,9 +1,9 @@
 /* style.css - Dark Glassmorphism Theme */
 :root {
-  --primary-color: #3b82f6;
-  --primary-hover: #2563eb;
+  --primary-color: #ffffff;
+  --primary-hover: #e5e7eb;
   /* Dark Radial Gradient matching the Next.js app */
-  --bg-gradient: radial-gradient(ellipse at center, #111827, #1a1b26, #000000);
+  --bg-gradient: radial-gradient(ellipse at center, #27272a, #18181b, #000000);
 
   /* Glass Effect */
   --glass-bg: rgba(255, 255, 255, 0.05);
@@ -12,11 +12,11 @@
   --text-color: #ffffff;
 
   /* Dark Inputs */
-  --input-bg: rgba(26, 27, 38, 0.5);
-  --input-border: rgba(168, 85, 247, 0.3);
-  /* Purple tint border */
+  --input-bg: rgba(24, 24, 27, 0.5);
+  --input-border: rgba(255, 255, 255, 0.2);
+  /* White tint border */
   --input-text: #ffffff;
-  --placeholder-color: #6b7280;
+  --placeholder-color: #9ca3af;
 }
 
 * {
@@ -99,9 +99,9 @@ body {
 .sheet-name:focus,
 .sheet-url:focus {
   outline: none;
-  border-color: #a855f7;
-  /* Purple-500 */
-  box-shadow: 0 0 0 1px #a855f7;
+  border-color: #ffffff;
+  /* White */
+  box-shadow: 0 0 0 1px #ffffff;
 }
 
 ::placeholder {
