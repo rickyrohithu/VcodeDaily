@@ -55,38 +55,53 @@ function cleanRawData(rawData) {
       // Ensure row is an array of values
       const row = Array.isArray(rawRow) ? rawRow : Object.values(rawRow);
 
-      // Find the name (longest string that isn't a URL)
-      const name = row.find(v => v && v.length < 100 && !v.startsWith('http') && !v.match(/^\d+$/));
-      const link = row.find(v => v && v.startsWith('http')) || '';
+      // 1. Identify Link (First HTTP string)
+      const link = row.find(v => v && typeof v === 'string' && v.includes('http')) || '';
 
-      // Try to find a Topic
-      const potentialTopic = row.find(v =>
-        v !== name &&
-        v !== link &&
-        v.length < 30 &&
-        !v.match(/^(Easy|Medium|Hard)$/i) &&
-        !v.match(/^\d+$/)
+      // 2. Identify Name (Longest string that isn't a URL and isn't a pure number)
+      // We filter out common short words like "Easy", "Medium", "Hard", "Done", "Yes", "No" to avoid false positives
+      const candidates = row.filter(v =>
+        v &&
+        typeof v === 'string' &&
+        !v.includes('http') &&
+        !v.match(/^\d+$/) &&
+        v.length > 2 && // Ignore very short strings
+        !['easy', 'medium', 'hard', 'done', 'pending', 'yes', 'no'].includes(v.toLowerCase())
       );
 
-      // Try to find Difficulty
-      const difficulty = row.find(v => v && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+      // Sort by length descending
+      candidates.sort((a, b) => b.length - a.length);
+      const name = candidates.length > 0 ? candidates[0] : null;
 
-      if (name) {
+      // 3. Identify Topic (Any other string that looks like a topic)
+      // We look for known keywords in the remaining candidates
+      let potentialTopic = "Uncategorized";
+      for (const c of candidates) {
+        if (c === name) continue; // Skip the name
+        const normalized = normalizeTopic(c);
+        if (normalized !== "Uncategorized") {
+          potentialTopic = normalized; // Found a valid topic column
+          break;
+        }
+      }
+
+      // 4. Identify Difficulty
+      const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+
+      if (name && link) { // Only accept if both Name and Link exist
         const cleanName = name.trim();
         if (!problemMap.has(cleanName)) {
           problemMap.set(cleanName, {
             link,
             sources: new Set(),
-            topic: potentialTopic || "Uncategorized",
+            topic: potentialTopic,
             difficulty: difficulty
           });
         }
         problemMap.get(cleanName).sources.add(cleanSource);
 
-        if (!problemMap.get(cleanName).link && link) {
-          problemMap.get(cleanName).link = link;
-        }
-        if (potentialTopic && problemMap.get(cleanName).topic === "Uncategorized") {
+        // Prefer "Uncategorized" topic update if we found a better one
+        if (potentialTopic !== "Uncategorized" && problemMap.get(cleanName).topic === "Uncategorized") {
           problemMap.get(cleanName).topic = potentialTopic;
         }
       }
