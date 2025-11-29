@@ -8,6 +8,7 @@
     <title>Dashboard – DSA Sheet Tracker</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary: #ffffff;
@@ -233,6 +234,7 @@
             color: var(--text-muted);
             text-decoration: none;
             transition: color 0.2s;
+            cursor: pointer;
         }
 
         .logout-link a:hover {
@@ -252,6 +254,14 @@
 
         <!-- Sheet Inputs -->
         <div id="sheetsContainer" class="input-group">
+            <!-- Input 1 -->
+            <div class="sheet-pair">
+                <input type="url" class="input-field sheet-url"
+                    placeholder="Paste Google Sheet URL (Make sure it's Public)" />
+                <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)"
+                    style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
+            </div>
+            <!-- Input 2 (Default) -->
             <div class="sheet-pair">
                 <input type="url" class="input-field sheet-url"
                     placeholder="Paste Google Sheet URL (Make sure it's Public)" />
@@ -269,9 +279,6 @@
         <!-- Main Actions -->
         <button class="btn btn-primary" id="analyseBtn">Analyse Sheet</button>
 
-        <!-- Hidden CSV Upload (kept for functionality but hidden from main view for cleanliness) -->
-        <input type="file" id="csvUpload" accept=".csv" multiple style="display:none;" />
-
         <!-- Results Section -->
         <div id="resultsSection" class="results-section" style="display: none;">
             <h2 style="font-size: 1.25rem; font-weight: 600; text-align: center; margin-bottom: 1.5rem;">Topic Analysis
@@ -283,68 +290,47 @@
         </div>
 
         <div class="logout-link">
-            <a href="login.html">Logout</a>
+            <a id="logoutBtn">Logout</a>
         </div>
     </div>
 
-    <!-- Supabase & Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auth.js"></script>
     <script>
-        // Check session on load
-        window.addEventListener('DOMContentLoaded', () => {
-            if (typeof checkSession === 'function') {
-                checkSession();
-            }
-        });
-    </script>
+        // --- AUTHENTICATION ---
+        const SUPABASE_URL = 'https://smiqyswcsrytwpudxhws.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtaXF5c3djc3J5dHdwdWR4aHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMTI0MTUsImV4cCI6MjA3OTg4ODQxNX0.JZUEjxrGAejZZ_1fiM15laBullQBOIYSaA4xXAq6ge8';
 
-    <script>
-        // ---------- CSV Upload handling ----------
-        const csvUpload = document.getElementById('csvUpload');
-        const uploadLog = document.getElementById('uploadLog');
-        const uploadCsvBtn = document.getElementById('uploadCsvBtn');
-        let selectedFiles = [];
-
-        uploadCsvBtn.addEventListener('click', () => csvUpload.click());
-
-        csvUpload.addEventListener('change', () => {
-            const newFiles = Array.from(csvUpload.files);
-            newFiles.forEach(f => {
-                if (!selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) {
-                    selectedFiles.push(f);
-                }
-            });
-            csvUpload.value = '';
-            renderUploadLog();
-        });
-
-        function renderUploadLog() {
-            uploadLog.innerHTML = '';
-            selectedFiles.slice(0, 10).forEach(f => {
-                const li = document.createElement('li');
-                li.textContent = f.name;
-                uploadLog.appendChild(li);
-            });
-            if (selectedFiles.length > 10) alert('Only first 10 files considered.');
+        let supabase = null;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } catch (e) {
+            console.error('Supabase Init Failed', e);
         }
 
-        // ---------- Dynamic Sheet Inputs ----------
+        async function checkSession() {
+            if (!supabase) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+            } else {
+                console.log('User:', session.user.email);
+                localStorage.setItem('userEmail', session.user.email);
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            if (supabase) await supabase.auth.signOut();
+            window.location.href = 'index.html';
+        });
+
+        // Run Auth Check
+        checkSession();
+
+
+        // --- APP LOGIC ---
+
+        // Dynamic Inputs
         const sheetsContainer = document.getElementById('sheetsContainer');
         const addSheetBtn = document.getElementById('addSheetBtn');
-
-        // Ensure we have 2 inputs on load
-        window.addEventListener('DOMContentLoaded', () => {
-            if (sheetsContainer.children.length < 2) {
-                const div = document.createElement('div');
-                div.className = 'sheet-pair';
-                div.innerHTML = `
-                    <input type="url" class="input-field sheet-url" placeholder="Paste Google Sheet URL (Make sure it's Public)" />
-                    <input type="text" class="input-field sheet-name" placeholder="Sheet Name (Optional)" style="margin-top: 0.5rem; font-size: 0.875rem; padding: 0.75rem;" />
-                `;
-                sheetsContainer.appendChild(div);
-            }
-        });
 
         addSheetBtn.addEventListener('click', () => {
             if (sheetsContainer.children.length >= 10) {
@@ -360,7 +346,7 @@
             sheetsContainer.appendChild(div);
         });
 
-        // ---------- Analyse Sheets ----------
+        // Analyse Sheets
         let currentProblems = [];
         const analyseBtn = document.getElementById('analyseBtn');
 
@@ -385,7 +371,6 @@
                 }
 
                 // Call Backend API
-                // Use relative path for Next.js API routes
                 const apiUrl = '/api/analyze-urls';
 
                 const response = await fetch(apiUrl, {
@@ -415,7 +400,6 @@
             const grid = document.getElementById('topicSummary');
             grid.innerHTML = '';
 
-            // Defined order or just iterate keys
             const topics = Object.keys(summary);
 
             if (topics.length === 0) {
@@ -457,7 +441,7 @@
             document.getElementById('resultsSection').style.display = 'block';
         }
 
-        // ---------- Generate Schedule ----------
+        // Generate Schedule
         document.getElementById('scheduleBtn').addEventListener('click', async () => {
             if (!currentProblems.length) return alert('Analyse sheets first!');
 
@@ -471,9 +455,7 @@
             document.querySelectorAll('.topic-order-input').forEach(i => topicOrder[i.dataset.topic] = parseInt(i.value) || 999);
 
             try {
-                const apiUrl = window.location.hostname === 'localhost' || window.location.protocol === 'file:'
-                    ? 'http://localhost:3000/api/generate-schedule'
-                    : '/api/generate-schedule';
+                const apiUrl = '/api/generate-schedule';
 
                 const res = await fetch(apiUrl, {
                     method: 'POST',
@@ -495,18 +477,6 @@
             }
         });
 
-        // ---------- Helpers ----------
-        function readFileAsArrayBuffer(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(new Uint8Array(e.target.result));
-                reader.onerror = reject;
-                reader.readAsArrayBuffer(file);
-            });
-        }
-
-        // Legacy helpers removed as backend handles analysis now.
-
         function renderSchedule(schedule) {
             const container = document.createElement('div');
             container.className = 'schedule-container';
@@ -527,7 +497,8 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v2.1</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.0
+        (Final)</div>
 </body>
 
 </html>
