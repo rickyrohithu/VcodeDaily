@@ -89,13 +89,13 @@ app.post('/api/analyze-urls', async (req, res) => {
             return res.status(400).json({ error: 'Failed to fetch any valid CSV data' });
         }
 
-        console.log('Sending data to Groq...');
-        const { processWithGroq } = require('./groqService');
-        const groqResponse = await processWithGroq(rawData);
+        console.log('Cleaning data (skipping full AI batch)...');
+        const { cleanRawData } = require('./groqService');
+        const problems = cleanRawData(rawData);
 
         res.json({
-            message: 'Analysis complete',
-            data: groqResponse
+            message: 'Data fetched successfully',
+            data: { problems, summary: {} } // Summary will be built by frontend after batching
         });
 
     } catch (error) {

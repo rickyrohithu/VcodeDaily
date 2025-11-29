@@ -351,7 +351,7 @@
         const analyseBtn = document.getElementById('analyseBtn');
 
         analyseBtn.addEventListener('click', async () => {
-            analyseBtn.textContent = 'Processing...';
+            analyseBtn.textContent = 'Fetching Sheets...';
             analyseBtn.disabled = true;
 
             try {
@@ -370,28 +370,64 @@
                     throw new Error('Please enter at least one Google Sheet URL.');
                 }
 
-                // Call Backend API
-                const apiUrl = '/api/analyze-urls';
-
-                const response = await fetch(apiUrl, {
+                // 1. Get Raw List (Fast)
+                const response = await fetch('/api/analyze-urls', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ urls })
                 });
 
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.error || 'Analysis failed');
+                if (!response.ok) throw new Error(result.error || 'Fetch failed');
 
-                const { summary, problems } = result.data;
-                currentProblems = problems;
+                let allProblems = result.data.problems;
+                currentProblems = []; // Reset
+
+                // 2. Client-Side Batching (To avoid Vercel 10s Timeout)
+                const BATCH_SIZE = 20;
+                const totalBatches = Math.ceil(allProblems.length / BATCH_SIZE);
+
+                for (let i = 0; i < totalBatches; i++) {
+                    analyseBtn.textContent = `Analyzing ${i + 1}/${totalBatches}...`;
+
+                    const batch = allProblems.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+
+                    try {
+                        const batchRes = await fetch('/api/analyze-batch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ problems: batch })
+                        });
+                        const batchData = await batchRes.json();
+
+                        if (batchData.problems) {
+                            currentProblems = currentProblems.concat(batchData.problems);
+                        } else {
+                            currentProblems = currentProblems.concat(batch); // Fallback to raw
+                        }
+                    } catch (e) {
+                        console.error('Batch failed', e);
+                        currentProblems = currentProblems.concat(batch); // Fallback
+                    }
+                }
+
+                // 3. Build Summary Locally
+                const summary = {};
+                currentProblems.forEach(p => {
+                    const t = p.topic || 'Uncategorized';
+                    if (!summary[t]) summary[t] = { easy: 0, medium: 0, hard: 0 };
+                    const d = (p.difficulty || 'Medium').toLowerCase();
+                    if (summary[t][d] !== undefined) summary[t][d]++;
+                });
 
                 renderTopicSummary(summary);
+                analyseBtn.textContent = 'Analysis Complete';
 
             } catch (error) {
                 alert('Analysis failed: ' + error.message);
                 console.error(error);
-            } finally {
                 analyseBtn.textContent = 'Analyse Sheet';
+            } finally {
                 analyseBtn.disabled = false;
             }
         });
@@ -516,7 +552,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.1</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.2</div>
 </body>
 
 </html>
