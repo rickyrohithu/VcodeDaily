@@ -10,29 +10,38 @@ const ALLOWED_TOPICS = [
   "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
   "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
   "Dynamic Programming (DP)", "Recursion & Backtracking",
-  "Sorting & Searching", "Greedy Algorithms"
+  "Sorting & Searching", "Greedy Algorithms",
+  "Bit Manipulation", "Math", "Two Pointers", "Sliding Window",
+  "Union Find", "Trie", "Segment Tree"
 ];
 
 // Helper to map any string to a Standard Topic
 const normalizeTopic = (input) => {
-  if (!input) return "Arrays"; // Default fallback
+  if (!input) return "Uncategorized";
   const lower = input.toLowerCase();
 
-  if (lower.includes("array")) return "Arrays";
-  if (lower.includes("string")) return "Strings";
+  if (lower.includes("bit") || lower.includes("binary")) return "Bit Manipulation";
+  if (lower.includes("dp") || lower.includes("dynamic")) return "Dynamic Programming (DP)";
+  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
+  if (lower.includes("tree") || lower.includes("bst")) return "Trees";
+  if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
   if (lower.includes("linked list")) return "Linked Lists";
   if (lower.includes("stack")) return "Stacks";
   if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
-  if (lower.includes("tree") || lower.includes("bst")) return "Trees";
   if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
   if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
-  if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
-  if (lower.includes("dynamic") || lower.includes("dp")) return "Dynamic Programming (DP)";
-  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
   if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
   if (lower.includes("greedy")) return "Greedy Algorithms";
+  if (lower.includes("math") || lower.includes("geometry")) return "Math";
+  if (lower.includes("pointer")) return "Two Pointers";
+  if (lower.includes("sliding")) return "Sliding Window";
+  if (lower.includes("union")) return "Union Find";
+  if (lower.includes("trie")) return "Trie";
+  if (lower.includes("segment")) return "Segment Tree";
+  if (lower.includes("string")) return "Strings";
+  if (lower.includes("array")) return "Arrays";
 
-  return "Arrays"; // Fallback for unknown
+  return "Uncategorized"; // Safer fallback
 };
 
 async function processWithGroq(rawData) {
@@ -93,8 +102,8 @@ async function processWithGroq(rawData) {
 
   const uniqueProblems = Array.from(problemMap.keys());
 
-  // Limit to 400 unique problems for Free Tier
-  const problemNames = uniqueProblems.slice(0, 400);
+  // Limit to 1000 unique problems for Free Tier
+  const problemNames = uniqueProblems.slice(0, 1000);
 
   // BATCHED PROCESSING
   const BATCH_SIZE = 25;
