@@ -210,13 +210,13 @@ app.post('/api/parse-csv', upload.single('file'), async (req, res) => {
 // 2. ANALYZE BATCH (Fast - called repeatedly by frontend)
 app.post('/api/analyze-batch', async (req, res) => {
     try {
-        const { problems } = req.body;
+        const { problems, apiKey } = req.body;
         if (!problems || !Array.isArray(problems)) {
             return res.status(400).json({ error: 'Invalid problems array' });
         }
 
         const { processBatchWithGroq } = require('./groqService');
-        const results = await processBatchWithGroq(problems);
+        const results = await processBatchWithGroq(problems, apiKey);
 
         res.json({ problems: results });
 

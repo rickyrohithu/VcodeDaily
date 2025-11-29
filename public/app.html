@@ -276,6 +276,15 @@
             </button>
         </div>
 
+        <div style="margin-bottom: 2rem;">
+            <input type="password" id="apiKeyInput" class="input-field"
+                placeholder="Enter Groq API Key (Optional - overrides server key)" style="border-color: #a78bfa;" />
+            <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 5px;">
+                Don't have one? Get it free at <a href="https://console.groq.com/keys" target="_blank"
+                    style="color: #a78bfa;">console.groq.com</a>
+            </p>
+        </div>
+
         <!-- Main Actions -->
         <button class="btn btn-primary" id="analyseBtn">Analyse Sheet</button>
 
@@ -353,6 +362,10 @@
         analyseBtn.addEventListener('click', async () => {
             analyseBtn.textContent = 'Fetching Sheets...';
             analyseBtn.disabled = true;
+            document.getElementById('resultsSection').style.display = 'none'; // Clear previous results
+            document.getElementById('topicSummary').innerHTML = ''; // Clear grid
+
+            const userApiKey = document.getElementById('apiKeyInput').value.trim();
 
             try {
                 const urls = [];
@@ -400,7 +413,10 @@
                         const batchRes = await fetch('/api/analyze-batch', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ problems: batch })
+                            body: JSON.stringify({
+                                problems: batch,
+                                apiKey: userApiKey // Send user key
+                            })
                         });
                         const batchData = await batchRes.json();
 
@@ -558,7 +574,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.4</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.5</div>
 </body>
 
 </html>

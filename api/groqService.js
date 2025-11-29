@@ -135,7 +135,10 @@ async function processWithGroq(rawData) {
 }
 
 // NEW: Process a small batch of problems (called by frontend loop)
-async function processBatchWithGroq(problems) {
+async function processBatchWithGroq(problems, userApiKey) {
+  // Use user key if provided, otherwise fallback to env var
+  const client = userApiKey ? new Groq({ apiKey: userApiKey }) : groq;
+
   // Use Index as ID to ensure perfect mapping back
   const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
 
@@ -161,7 +164,7 @@ async function processBatchWithGroq(problems) {
   `;
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await client.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
