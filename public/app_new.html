@@ -461,7 +461,7 @@
             const topics = Object.keys(summary);
 
             if (topics.length === 0) {
-                grid.innerHTML = '<p style="color:gray; text-align:center; grid-column:1/-1;">No topics found. Please check your sheet permissions or format.</p>';
+                grid.innerHTML = '<p style="color: #f87171; text-align:center; grid-column:1/-1; background: rgba(255,0,0,0.1); padding: 10px; border-radius: 8px;">No topics found. The AI might have failed to classify the problems. Please check your API Key.</p>';
                 return;
             }
 
@@ -574,7 +574,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.5</div>
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.7</div>
 </body>
 
 </html>
