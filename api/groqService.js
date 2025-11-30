@@ -63,7 +63,7 @@ function cleanRawData(rawData) {
         typeof v === 'string' &&
         !v.includes('http') &&
         !v.match(/^\d+$/) &&
-        v.length > 2 && // Ignore very short strings
+        v.length > 1 && // Relaxed: Allow 2-char names (e.g. "Pi")
         !['easy', 'medium', 'hard', 'done', 'pending', 'yes', 'no'].includes(v.toLowerCase())
       );
 
@@ -110,8 +110,8 @@ function cleanRawData(rawData) {
 
   const uniqueProblems = Array.from(problemMap.keys());
 
-  // Limit to 1000 unique problems
-  const problemNames = uniqueProblems.slice(0, 1000);
+  // Limit to 5000 unique problems (Increased from 1000)
+  const problemNames = uniqueProblems.slice(0, 5000);
 
   return problemNames.map(name => {
     const data = problemMap.get(name);
