@@ -222,7 +222,7 @@ app.post('/api/analyze-batch', async (req, res) => {
 
     } catch (error) {
         console.error('Batch Analysis Error:', error);
-        res.status(500).json({ error: 'Analysis failed' });
+        res.status(500).json({ error: `Batch Analysis Error: ${error.message}` });
     }
 });
 
