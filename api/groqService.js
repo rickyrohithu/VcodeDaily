@@ -148,10 +148,8 @@ async function processBatchWithGroq(problems, userApiKey) {
     YOUR TASKS:
     1. Analyze each problem Name.
     2. **TOPIC**: Classify it into one of the allowed topics.
-    3. **DIFFICULTY**: Identify the EXACT Difficulty (Easy, Medium, Hard) as listed on LeetCode. Be accurate.
-    4. **LINK**: You MUST provide the correct LeetCode URL for this problem. 
-       - If the input link is missing, generate the correct LeetCode link.
-       - If the input link is not a LeetCode link, replace it with the LeetCode link.
+    3. **DIFFICULTY**: Identify the EXACT Difficulty (Easy, Medium, Hard) as listed on LeetCode.
+    4. **LINK**: Provide the correct LeetCode URL.
     
     OUTPUT FORMAT (JSON ONLY):
     {
@@ -160,6 +158,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         "1": { "topic": "Trees", "difficulty": "Easy", "link": "https://leetcode.com/problems/..." }
       }
     }
+    IMPORTANT: Return ONLY valid JSON. Do not include any other text.
   `;
 
   try {
@@ -168,7 +167,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama-3.3-70b-versatile', // Smarter model
+      model: 'llama3-70b-8192', // Switched to stable model
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
