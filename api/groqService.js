@@ -173,13 +173,18 @@ async function processBatchWithGroq(problems, userApiKey) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama3-70b-8192', // Switched to stable model
+      model: 'llama-3.3-70b-versatile', // Back to the smartest model
       temperature: 0.1,
-      response_format: { type: 'json_object' }
+      // response_format: { type: 'json_object' } // REMOVED: Causing "empty output" errors
     });
 
-    console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "..."); // Log first 200 chars
-    const result = JSON.parse(completion.choices[0].message.content);
+    console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "...");
+
+    // CLEANUP: Extract JSON from Markdown code blocks if present
+    let cleanContent = completion.choices[0].message.content;
+    cleanContent = cleanContent.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    const result = JSON.parse(cleanContent);
     const classifications = result.classifications || {};
 
     // Merge AI results with original data using Index
