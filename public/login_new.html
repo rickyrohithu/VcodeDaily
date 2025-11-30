@@ -212,13 +212,13 @@
             <button type="submit" class="btn-primary" id="loginBtn">Login</button>
         </form>
         <p class="switch-link">Don't have an account? <a href="signup.html">Sign Up</a></p>
-        <p style="text-align: center; color: #ef4444; margin-top: 20px; font-size: 1.2rem; font-weight: bold;">I AM
-            UPDATED v2.1 (RED)</p>
+        <p style="text-align: center; color: #ef4444; margin-top: 20px; font-size: 1.2rem; font-weight: bold;">UPDATED
+            v1.3</p>
     </div>
 
     <!-- Supabase & Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="auth_new.js"></script>
+    <script src="auth.js"></script>
     <script>
         const loginForm = document.getElementById('loginForm');
         const loginBtn = document.getElementById('loginBtn');
@@ -233,9 +233,7 @@
 
             const success = await signIn(email, password);
 
-            if (success) {
-                window.location.href = 'app_new.html';
-            } else {
+            if (!success) {
                 loginBtn.textContent = 'Login';
                 loginBtn.disabled = false;
             }
