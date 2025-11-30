@@ -181,18 +181,30 @@ async function processBatchWithGroq(problems, userApiKey) {
     return problems.map((p, index) => {
       const aiClass = classifications[index.toString()] || {};
 
-      let rawTopic = (aiClass.topic && aiClass.topic !== "Uncategorized") ? aiClass.topic : p.topic;
+      // 1. TOPIC: Handle "None", "Unknown", or missing
+      let rawTopic = aiClass.topic;
+      if (!rawTopic || rawTopic === "None" || rawTopic === "Unknown") {
+        rawTopic = p.topic || "Uncategorized";
+      }
       const finalTopic = normalizeTopic(rawTopic);
 
-      const finalDiff = (aiClass.difficulty) ? aiClass.difficulty : p.difficulty;
+      // 2. DIFFICULTY: Handle invalid difficulty
+      let rawDiff = aiClass.difficulty;
+      if (!rawDiff || !['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
+        rawDiff = p.difficulty || "Medium";
+      }
+      // Final fallback if still invalid
+      if (!['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
+        rawDiff = "Medium";
+      }
 
-      // Use AI link if original is missing
+      // 3. LINK: Use AI link if original is missing
       const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
 
       return {
         ...p,
         topic: finalTopic,
-        difficulty: finalDiff,
+        difficulty: rawDiff,
         link: finalLink
       };
     });
