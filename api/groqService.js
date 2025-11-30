@@ -148,24 +148,27 @@ async function processBatchWithGroq(problems, userApiKey) {
 
   const systemPrompt = `
     You are an expert DSA Study Planner.
-    Classify the given problems into EXACTLY one of these topics:
-    ${JSON.stringify(ALLOWED_TOPICS)}
+    I will provide a list of coding problems.
+    For EACH problem, you MUST:
+    1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
+    2. Identify the Difficulty (Easy, Medium, Hard).
+    3. Find or Generate the LeetCode URL.
+
+    Rules:
+    - You MUST return a JSON object with a "classifications" key.
+    - The keys inside "classifications" MUST match the IDs provided (0, 1, 2...).
+    - Do NOT skip any problems.
+    - Do NOT use "Uncategorized". Pick the closest topic from the list.
+    - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
     
-    YOUR TASKS:
-    1. Analyze each problem Name.
-    2. **TOPIC**: Classify it into one of the allowed topics.
-    3. **DIFFICULTY**: Identify the EXACT Difficulty (Easy, Medium, Hard) as listed on LeetCode.
-    4. **LINK**: Provide the correct LeetCode URL.
-    
-    OUTPUT FORMAT (JSON ONLY):
+    Output JSON format:
     {
       "classifications": {
-        "0": { "topic": "Arrays & Strings", "difficulty": "Medium", "link": "https://leetcode.com/problems/..." },
-        "1": { "topic": "Trees", "difficulty": "Easy", "link": "https://leetcode.com/problems/..." }
+        "0": { "topic": "Arrays & Strings", "difficulty": "Medium", "link": "https://leetcode.com/..." },
+        ...
       }
     }
-    IMPORTANT: Return ONLY valid JSON. Do not include any other text.
-  `;
+    `;
 
   try {
     const completion = await client.chat.completions.create({
@@ -173,18 +176,14 @@ async function processBatchWithGroq(problems, userApiKey) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama-3.3-70b-versatile', // Back to the smartest model
+      model: 'mixtral-8x7b-32768', // High capacity model, good at following instructions
       temperature: 0.1,
-      // response_format: { type: 'json_object' } // REMOVED: Causing "empty output" errors
+      response_format: { type: 'json_object' }
     });
 
     console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "...");
 
-    // CLEANUP: Extract JSON from Markdown code blocks if present
-    let cleanContent = completion.choices[0].message.content;
-    cleanContent = cleanContent.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    const result = JSON.parse(cleanContent);
+    const result = JSON.parse(completion.choices[0].message.content);
     const classifications = result.classifications || {};
 
     // Merge AI results with original data using Index
