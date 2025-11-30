@@ -5,14 +5,20 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || 'gsk_placeholder_key'
 });
 
-// STANDARD TOPICS LIST
+// STANDARD TOPICS LIST (Updated per user request)
 const ALLOWED_TOPICS = [
-  "Arrays", "Strings", "Linked Lists", "Stacks", "Queues",
-  "Trees", "Heaps / Priority Queues", "Hashing", "Graphs",
-  "Dynamic Programming (DP)", "Recursion & Backtracking",
-  "Sorting & Searching", "Greedy Algorithms",
-  "Bit Manipulation", "Math", "Two Pointers", "Sliding Window",
-  "Union Find", "Trie", "Segment Tree"
+  "Arrays & Strings",
+  "Math & Bit Manipulation",
+  "Searching",
+  "Sorting",
+  "Hashing",
+  "Recursion & Backtracking",
+  "Stacks & Queues",
+  "Linked Lists",
+  "Trees",
+  "Binary Search Trees (BST)",
+  "Heaps & Priority Queues",
+  "Graphs"
 ];
 
 // Helper to map any string to a Standard Topic
@@ -20,26 +26,18 @@ const normalizeTopic = (input) => {
   if (!input) return "Uncategorized";
   const lower = input.toLowerCase();
 
-  if (lower.includes("bit") || lower.includes("binary")) return "Bit Manipulation";
-  if (lower.includes("dp") || lower.includes("dynamic")) return "Dynamic Programming (DP)";
+  if (lower.includes("bst") || lower.includes("binary search tree")) return "Binary Search Trees (BST)";
+  if (lower.includes("heap") || lower.includes("priority")) return "Heaps & Priority Queues";
+  if (lower.includes("bit") || lower.includes("math")) return "Math & Bit Manipulation";
   if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
-  if (lower.includes("tree") || lower.includes("bst")) return "Trees";
+  if (lower.includes("tree")) return "Trees";
   if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
   if (lower.includes("linked list")) return "Linked Lists";
-  if (lower.includes("stack")) return "Stacks";
-  if (lower.includes("queue") && !lower.includes("priority")) return "Queues";
-  if (lower.includes("heap") || lower.includes("priority queue")) return "Heaps / Priority Queues";
+  if (lower.includes("stack") || lower.includes("queue")) return "Stacks & Queues";
   if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
-  if (lower.includes("sort") || lower.includes("search") || lower.includes("binary search")) return "Sorting & Searching";
-  if (lower.includes("greedy")) return "Greedy Algorithms";
-  if (lower.includes("math") || lower.includes("geometry")) return "Math";
-  if (lower.includes("pointer")) return "Two Pointers";
-  if (lower.includes("sliding")) return "Sliding Window";
-  if (lower.includes("union")) return "Union Find";
-  if (lower.includes("trie")) return "Trie";
-  if (lower.includes("segment")) return "Segment Tree";
-  if (lower.includes("string")) return "Strings";
-  if (lower.includes("array")) return "Arrays";
+  if (lower.includes("sort")) return "Sorting";
+  if (lower.includes("search") || lower.includes("binary search")) return "Searching";
+  if (lower.includes("string") || lower.includes("array")) return "Arrays & Strings";
 
   return "Uncategorized"; // Safer fallback
 };
