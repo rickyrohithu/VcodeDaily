@@ -146,17 +146,18 @@ async function processBatchWithGroq(problems, userApiKey) {
     ${JSON.stringify(ALLOWED_TOPICS)}
     
     YOUR TASKS:
-    1. Analyze each problem using its Name and Link.
-    2. Identify the Topic from the list above.
-    3. Identify the Difficulty (Easy, Medium, Hard). Use your knowledge of LeetCode problems. Do NOT default to Medium; guess Easy or Hard if appropriate.
-    4. Provide the LeetCode URL if the original link is missing or invalid.
-    5. Return a JSON object where keys are the IDs provided.
-
+    1. Analyze each problem Name.
+    2. **TOPIC**: Classify it into one of the allowed topics.
+    3. **DIFFICULTY**: Identify the EXACT Difficulty (Easy, Medium, Hard) as listed on LeetCode. Be accurate.
+    4. **LINK**: You MUST provide the correct LeetCode URL for this problem. 
+       - If the input link is missing, generate the correct LeetCode link.
+       - If the input link is not a LeetCode link, replace it with the LeetCode link.
+    
     OUTPUT FORMAT (JSON ONLY):
     {
       "classifications": {
-        "0": { "topic": "Topic", "difficulty": "Easy", "link": "https://leetcode.com/problems/..." },
-        "1": { "topic": "Topic", "difficulty": "Medium", "link": "..." }
+        "0": { "topic": "Arrays & Strings", "difficulty": "Medium", "link": "https://leetcode.com/problems/..." },
+        "1": { "topic": "Trees", "difficulty": "Easy", "link": "https://leetcode.com/problems/..." }
       }
     }
   `;
