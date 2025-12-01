@@ -150,84 +150,73 @@ function cleanRawData(rawData) {
   const problemMap = new Map(); // Name -> { link, sources: Set }
 
   rawData.forEach(file => {
-    // STRICTLY Clean filename: remove .csv, .xlsx, .xls (case insensitive)
     let cleanSource = file.filename.replace(/\.(csv|xlsx|xls)$/i, '').trim();
 
-    file.content.forEach(rawRow => {
+    file.content.forEach((rawRow, rowIndex) => {
       // Ensure row is an array of values
       const row = Array.isArray(rawRow) ? rawRow : Object.values(rawRow);
 
-      // 1. Identify Link (First HTTP string)
-      const link = row.find(v => v && typeof v === 'string' && v.includes('http')) || '';
+      // Skip completely empty rows
+      if (row.length === 0 || row.every(c => !c || c.toString().trim() === '')) return;
 
-      // 2. Identify Name (Longest string that isn't a URL and isn't a pure number)
-      // We filter out common short words like "Easy", "Medium", "Hard", "Done", "Yes", "No" to avoid false positives
-      const candidates = row.filter(v =>
+      // STRATEGY: Grab EVERYTHING.
+      // 1. Look for a Link
+      let link = row.find(v => v && typeof v === 'string' && v.includes('http')) || '';
+
+      // 2. Look for a Name
+      // Priority: Longest string that isn't a link
+      const textCandidates = row.filter(v =>
         v &&
         typeof v === 'string' &&
         !v.includes('http') &&
-        !v.match(/^\d+$/) &&
-        v.length > 1 && // Relaxed: Allow 2-char names (e.g. "Pi")
-        !['easy', 'medium', 'hard', 'done', 'pending', 'yes', 'no'].includes(v.toLowerCase())
+        v.trim().length > 0
       );
 
-      // Sort by length descending
-      candidates.sort((a, b) => b.length - a.length);
-      let name = candidates.length > 0 ? candidates[0] : null;
+      textCandidates.sort((a, b) => b.length - a.length);
+      let name = textCandidates[0];
 
-      // FALLBACK 1: If no name found but Link exists, extract name from Link
+      // Fallback: Extract from link
       if (!name && link) {
         try {
           const parts = link.split('/').filter(p => p && p.trim() !== '');
-          const lastPart = parts[parts.length - 1];
-          name = lastPart.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          name = parts[parts.length - 1].replace(/-/g, ' ');
         } catch (e) { }
       }
 
-      // FALLBACK 2: If still no name, but we have a link, use the link itself as a placeholder name
-      if (!name && link) {
-        name = "Unknown Problem (" + link.substring(0, 20) + "...)";
+      // Fallback: Use "Problem Row X"
+      if (!name) {
+        name = `Problem Row ${rowIndex + 1}`;
       }
 
-      // 3. Identify Topic (Any other string that looks like a topic)
-      let potentialTopic = "Uncategorized";
-      for (const c of candidates) {
-        if (c === name) continue;
-        const normalized = normalizeTopic(c);
-        if (normalized !== "Uncategorized") {
-          potentialTopic = normalized;
+      // 3. Difficulty
+      const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
+
+      // 4. Topic
+      let topic = "Uncategorized";
+      for (const t of textCandidates) {
+        if (t === name) continue;
+        const norm = normalizeTopic(t);
+        if (norm !== "Uncategorized") {
+          topic = norm;
           break;
         }
       }
 
-      // 4. Identify Difficulty
-      const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
-
-      // SUPER RELAXED CHECK: Accept if we have a Name OR a Link.
-      if (name || link) {
-        const finalName = (name || "Unknown Problem").trim();
-        const cleanName = finalName; // Use as key
-
-        if (!problemMap.has(cleanName)) {
-          problemMap.set(cleanName, {
-            link: "", // IGNORE SHEET LINK (User Request: "Find all links yourself")
-            sources: new Set(),
-            topic: potentialTopic,
-            difficulty: difficulty
-          });
-        }
-        problemMap.get(cleanName).sources.add(cleanSource);
-
-        if (potentialTopic !== "Uncategorized" && problemMap.get(cleanName).topic === "Uncategorized") {
-          problemMap.get(cleanName).topic = potentialTopic;
-        }
+      const cleanName = name.trim();
+      if (!problemMap.has(cleanName)) {
+        problemMap.set(cleanName, {
+          link: "", // Force AI to find link
+          sources: new Set(),
+          topic: topic,
+          difficulty: difficulty
+        });
       }
+      problemMap.get(cleanName).sources.add(cleanSource);
     });
   });
 
   const uniqueProblems = Array.from(problemMap.keys());
-
-  // Limit to 5000 unique problems (Increased from 1000)
+  // Limit to 5000
   const problemNames = uniqueProblems.slice(0, 5000);
 
   return problemNames.map(name => {
@@ -236,7 +225,7 @@ function cleanRawData(rawData) {
       name: name,
       link: data.link,
       source: Array.from(data.sources).join(', '),
-      topic: normalizeTopic(data.topic), // Initial normalization
+      topic: normalizeTopic(data.topic),
       difficulty: data.difficulty
     };
   });
