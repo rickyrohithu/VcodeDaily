@@ -62,6 +62,12 @@ app.post('/api/analyze-urls', async (req, res) => {
             try {
                 const response = await axios.get(csvUrl, { responseType: 'arraybuffer' });
 
+                // Check if response is HTML (Google Login Page)
+                const contentType = response.headers['content-type'];
+                if (contentType && contentType.includes('text/html')) {
+                    throw new Error('Google Sheet is not public. Please change sharing settings to "Anyone with the link".');
+                }
+
                 // Parse CSV Buffer
                 const stream = require('stream');
                 const bufferStream = new stream.PassThrough();
@@ -70,7 +76,7 @@ app.post('/api/analyze-urls', async (req, res) => {
                 const parsedRows = await new Promise((resolve, reject) => {
                     const results = [];
                     bufferStream
-                        .pipe(csv())
+                        .pipe(csv({ headers: false })) // Treat as raw rows (no headers)
                         .on('data', (data) => results.push(data))
                         .on('end', () => resolve(results))
                         .on('error', (err) => reject(err));
