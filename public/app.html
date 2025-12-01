@@ -413,10 +413,15 @@
                         });
                         const batchData = await batchRes.json();
 
+                        if (!batchRes.ok) {
+                            const errorMsg = batchData.error || batchData.message || batchData.errorMessage || JSON.stringify(batchData);
+                            throw new Error(`Server Error (${batchRes.status}): ${errorMsg}`);
+                        }
+
                         if (batchData.problems) {
                             currentProblems = currentProblems.concat(batchData.problems);
                         } else {
-                            throw new Error('Invalid batch response');
+                            throw new Error('Invalid batch response: Missing problems array');
                         }
                     } catch (e) {
                         console.error('Batch failed', e);
@@ -570,7 +575,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.18
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.19
     </div>
 </body>
 
