@@ -55,7 +55,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama-3.3-70b-versatile', // Updated to latest supported model
+      model: 'llama-3.1-8b-instant', // Switch to smaller, faster model to bypass rate limits
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
