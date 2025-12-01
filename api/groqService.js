@@ -51,7 +51,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'mixtral-8x7b-32768', // High capacity model, good at following instructions
+      model: 'llama-3.3-70b-versatile', // Updated to latest supported model
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
