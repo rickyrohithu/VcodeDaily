@@ -394,7 +394,7 @@
                 currentProblems = []; // Reset
 
                 // 2. Client-Side Batching (To avoid Vercel 10s Timeout)
-                const BATCH_SIZE = 20;
+                const BATCH_SIZE = 10; // Reduced to 10 to avoid Vercel timeouts
                 const totalBatches = Math.ceil(allProblems.length / BATCH_SIZE);
 
                 for (let i = 0; i < totalBatches; i++) {
@@ -575,7 +575,7 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.22
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.23
     </div>
 </body>
 

@@ -173,7 +173,21 @@ function cleanRawData(rawData) {
 
       // Sort by length descending
       candidates.sort((a, b) => b.length - a.length);
-      const name = candidates.length > 0 ? candidates[0] : null;
+      let name = candidates.length > 0 ? candidates[0] : null;
+
+      // FALLBACK: If no name found but Link exists, extract name from Link
+      if (!name && link) {
+        try {
+          // Extract slug from leetcode/gfg url
+          // e.g. https://leetcode.com/problems/two-sum/ -> two-sum
+          const parts = link.split('/').filter(p => p && p.trim() !== '');
+          const lastPart = parts[parts.length - 1];
+          // Simple title case conversion: "two-sum" -> "Two Sum"
+          name = lastPart.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        } catch (e) {
+          // Ignore
+        }
+      }
 
       // 3. Identify Topic (Any other string that looks like a topic)
       // We look for known keywords in the remaining candidates
