@@ -175,28 +175,27 @@ function cleanRawData(rawData) {
       candidates.sort((a, b) => b.length - a.length);
       let name = candidates.length > 0 ? candidates[0] : null;
 
-      // FALLBACK: If no name found but Link exists, extract name from Link
+      // FALLBACK 1: If no name found but Link exists, extract name from Link
       if (!name && link) {
         try {
-          // Extract slug from leetcode/gfg url
-          // e.g. https://leetcode.com/problems/two-sum/ -> two-sum
           const parts = link.split('/').filter(p => p && p.trim() !== '');
           const lastPart = parts[parts.length - 1];
-          // Simple title case conversion: "two-sum" -> "Two Sum"
           name = lastPart.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        } catch (e) {
-          // Ignore
-        }
+        } catch (e) { }
+      }
+
+      // FALLBACK 2: If still no name, but we have a link, use the link itself as a placeholder name
+      if (!name && link) {
+        name = "Unknown Problem (" + link.substring(0, 20) + "...)";
       }
 
       // 3. Identify Topic (Any other string that looks like a topic)
-      // We look for known keywords in the remaining candidates
       let potentialTopic = "Uncategorized";
       for (const c of candidates) {
-        if (c === name) continue; // Skip the name
+        if (c === name) continue;
         const normalized = normalizeTopic(c);
         if (normalized !== "Uncategorized") {
-          potentialTopic = normalized; // Found a valid topic column
+          potentialTopic = normalized;
           break;
         }
       }
@@ -204,13 +203,14 @@ function cleanRawData(rawData) {
       // 4. Identify Difficulty
       const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
 
-      // RELAXED CHECK: Accept problem even if Link is missing (Google Sheets CSV strips rich hyperlinks).
-      // The AI will find the link later in the batch process.
-      if (name) {
-        const cleanName = name.trim();
+      // SUPER RELAXED CHECK: Accept if we have a Name OR a Link.
+      if (name || link) {
+        const finalName = (name || "Unknown Problem").trim();
+        const cleanName = finalName; // Use as key
+
         if (!problemMap.has(cleanName)) {
           problemMap.set(cleanName, {
-            link, // Might be empty
+            link,
             sources: new Set(),
             topic: potentialTopic,
             difficulty: difficulty
@@ -218,7 +218,6 @@ function cleanRawData(rawData) {
         }
         problemMap.get(cleanName).sources.add(cleanSource);
 
-        // Prefer "Uncategorized" topic update if we found a better one
         if (potentialTopic !== "Uncategorized" && problemMap.get(cleanName).topic === "Uncategorized") {
           problemMap.get(cleanName).topic = potentialTopic;
         }
