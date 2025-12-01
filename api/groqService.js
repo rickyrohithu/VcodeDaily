@@ -28,6 +28,7 @@ async function processBatchWithGroq(problems, userApiKey) {
     1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
     2. Find or Generate the LeetCode URL.
     3. Identify the Difficulty (Easy, Medium, Hard).
+    4. RENAME the problem to its standard LeetCode title (e.g., "Microsoft-46" -> "Permutations", "Two Sum" -> "Two Sum").
 
     Rules:
     - You MUST return a JSON object with a "classifications" key.
@@ -35,11 +36,12 @@ async function processBatchWithGroq(problems, userApiKey) {
     - Do NOT skip any problems.
     - Do NOT use "Uncategorized". Pick the closest topic from the list.
     - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
+    - The "name" field in the output MUST be the clean LeetCode title.
     
     Output JSON format:
     {
       "classifications": {
-        "0": { "topic": "Arrays", "difficulty": "Medium", "link": "https://leetcode.com/..." },
+        "0": { "name": "Two Sum", "topic": "Arrays", "difficulty": "Medium", "link": "https://leetcode.com/..." },
         ...
       }
     }
@@ -85,8 +87,12 @@ async function processBatchWithGroq(problems, userApiKey) {
       // 3. LINK: Use AI link if original is missing
       const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
 
+      // 4. NAME: Use AI name if provided (to fix "Microsoft-46" -> "Permutations")
+      const finalName = aiClass.name || p.name;
+
       return {
         ...p,
+        name: finalName,
         topic: finalTopic,
         difficulty: rawDiff,
         link: finalLink
