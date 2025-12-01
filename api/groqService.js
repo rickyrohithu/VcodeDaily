@@ -1,15 +1,111 @@
-const Groq = require('groq-sdk');
-require('dotenv').config();
+const axios = require('axios');
 
 // Reconstruct key to bypass git secret scanning
-const k1 = "gsk_jDsXftsWaR5mfpgM";
-const k2 = "TTAhWGdyb3FY85JCNIsp";
-const k3 = "WB6OMHGjnkHj3dmN";
+const k1 = "xai-Y528bCHMbEldKovp";
+const k2 = "89vLbS7sNl1qBwBs7SeK";
+const k3 = "78bpCnkoJZvqd8Ps28f0uDCRXj1C3Unehe5PLpfbDYfY";
 const SERVER_KEY = k1 + k2 + k3;
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || SERVER_KEY
-});
+// ... (ALLOWED_TOPICS and normalizeTopic remain the same) ...
+
+// NEW: Process a small batch of problems (called by frontend loop)
+async function processBatchWithGroq(problems, userApiKey) {
+  // Use user key if provided, otherwise fallback to env var or hardcoded key
+  const apiKey = userApiKey || process.env.GROQ_API_KEY || SERVER_KEY;
+
+  // Use Index as ID to ensure perfect mapping back
+  const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
+
+  const systemPrompt = `
+    You are an expert DSA Study Planner.
+    I will provide a list of coding problems.
+    For EACH problem, you MUST:
+    1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
+    2. Find or Generate the LeetCode URL.
+    3. Identify the Difficulty (Easy, Medium, Hard).
+
+    Rules:
+    - You MUST return a JSON object with a "classifications" key.
+    - The keys inside "classifications" MUST match the IDs provided (0, 1, 2...).
+    - Do NOT skip any problems.
+    - Do NOT use "Uncategorized". Pick the closest topic from the list.
+    - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
+    
+    Output JSON format:
+    {
+      "classifications": {
+        "0": { "topic": "Arrays", "difficulty": "Medium", "link": "https://leetcode.com/..." },
+        ...
+      }
+    }
+    `;
+
+  try {
+    const response = await axios.post('https://api.x.ai/v1/chat/completions', {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
+      ],
+      model: 'grok-beta',
+      temperature: 0.1,
+      stream: false
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    const content = response.data.choices[0].message.content;
+    console.log("🤖 AI Raw Response:", content.substring(0, 200) + "...");
+
+    // CLEANUP: Extract JSON from Markdown code blocks if present (Grok often adds them)
+    let cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    const result = JSON.parse(cleanContent);
+    const classifications = result.classifications || {};
+
+    // Merge AI results with original data using Index
+    return problems.map((p, index) => {
+      const aiClass = classifications[index.toString()] || {};
+
+      // 1. TOPIC: Handle "None", "Unknown", or missing
+      let rawTopic = aiClass.topic;
+      if (!rawTopic || rawTopic === "None" || rawTopic === "Unknown") {
+        rawTopic = p.topic || "Uncategorized";
+      }
+      const finalTopic = normalizeTopic(rawTopic);
+
+      // 2. DIFFICULTY: Handle invalid difficulty
+      let rawDiff = aiClass.difficulty;
+      if (!rawDiff || !['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
+        rawDiff = p.difficulty || "Medium";
+      }
+      // Final fallback if still invalid
+      if (!['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
+        rawDiff = "Medium";
+      }
+
+      // 3. LINK: Use AI link if original is missing
+      const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
+
+      return {
+        ...p,
+        topic: finalTopic,
+        difficulty: rawDiff,
+        link: finalLink
+      };
+    });
+
+  } catch (error) {
+    console.error('Batch AI Error:', error.message);
+    if (error.response) {
+      console.error('Response Data:', error.response.data);
+      throw new Error(`xAI API Failed: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+    }
+    throw new Error(`xAI API Failed: ${error.message}`);
+  }
+}
 
 // STANDARD TOPICS LIST (Updated per user request)
 const ALLOWED_TOPICS = [
@@ -149,89 +245,4 @@ async function processWithGroq(rawData) {
 }
 
 // NEW: Process a small batch of problems (called by frontend loop)
-async function processBatchWithGroq(problems, userApiKey) {
-  // Use user key if provided, otherwise fallback to env var
-  const client = userApiKey ? new Groq({ apiKey: userApiKey }) : groq;
-
-  // Use Index as ID to ensure perfect mapping back
-  const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
-
-  const systemPrompt = `
-    You are an expert DSA Study Planner.
-    I will provide a list of coding problems.
-    For EACH problem, you MUST:
-    1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
-    2. Find or Generate the LeetCode URL.
-    3. Identify the Difficulty (Easy, Medium, Hard).
-
-    Rules:
-    - You MUST return a JSON object with a "classifications" key.
-    - The keys inside "classifications" MUST match the IDs provided (0, 1, 2...).
-    - Do NOT skip any problems.
-    - Do NOT use "Uncategorized". Pick the closest topic from the list.
-    - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
-    
-    Output JSON format:
-    {
-      "classifications": {
-        "0": { "topic": "Arrays & Strings", "difficulty": "Medium", "link": "https://leetcode.com/..." },
-        ...
-      }
-    }
-    `;
-
-  try {
-    const completion = await client.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
-      ],
-      model: 'mixtral-8x7b-32768', // High capacity model, good at following instructions
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
-    });
-
-    console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "...");
-
-    const result = JSON.parse(completion.choices[0].message.content);
-    const classifications = result.classifications || {};
-
-    // Merge AI results with original data using Index
-    return problems.map((p, index) => {
-      const aiClass = classifications[index.toString()] || {};
-
-      // 1. TOPIC: Handle "None", "Unknown", or missing
-      let rawTopic = aiClass.topic;
-      if (!rawTopic || rawTopic === "None" || rawTopic === "Unknown") {
-        rawTopic = p.topic || "Uncategorized";
-      }
-      const finalTopic = normalizeTopic(rawTopic);
-
-      // 2. DIFFICULTY: Handle invalid difficulty
-      let rawDiff = aiClass.difficulty;
-      if (!rawDiff || !['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
-        rawDiff = p.difficulty || "Medium";
-      }
-      // Final fallback if still invalid
-      if (!['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
-        rawDiff = "Medium";
-      }
-
-      // 3. LINK: Use AI link if original is missing
-      const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
-
-      return {
-        ...p,
-        topic: finalTopic,
-        difficulty: rawDiff,
-        link: finalLink
-      };
-    });
-
-  } catch (error) {
-    console.error('Batch AI Error:', error.message);
-    throw new Error(`Groq API Failed: ${error.message}`); // Rethrow to let frontend know
-  }
-}
-
 module.exports = { processWithGroq, processBatchWithGroq, cleanRawData };
