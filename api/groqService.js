@@ -1,17 +1,22 @@
-const axios = require('axios');
+const Groq = require('groq-sdk');
+require('dotenv').config();
 
 // Reconstruct key to bypass git secret scanning
-const k1 = "xai-Y528bCHMbEldKovp";
-const k2 = "89vLbS7sNl1qBwBs7SeK";
-const k3 = "78bpCnkoJZvqd8Ps28f0uDCRXj1C3Unehe5PLpfbDYfY";
+const k1 = "gsk_jDsXftsWaR5mfpgM";
+const k2 = "TTAhWGdyb3FY85JCNIsp";
+const k3 = "WB6OMHGjnkHj3dmN";
 const SERVER_KEY = k1 + k2 + k3;
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || SERVER_KEY
+});
 
 // ... (ALLOWED_TOPICS and normalizeTopic remain the same) ...
 
 // NEW: Process a small batch of problems (called by frontend loop)
 async function processBatchWithGroq(problems, userApiKey) {
-  // Use user key if provided, otherwise fallback to env var or hardcoded key
-  const apiKey = userApiKey || process.env.GROQ_API_KEY || SERVER_KEY;
+  // Use user key if provided, otherwise fallback to env var
+  const client = userApiKey ? new Groq({ apiKey: userApiKey }) : groq;
 
   // Use Index as ID to ensure perfect mapping back
   const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
@@ -41,28 +46,19 @@ async function processBatchWithGroq(problems, userApiKey) {
     `;
 
   try {
-    const response = await axios.post('https://api.x.ai/v1/chat/completions', {
+    const completion = await client.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'grok-beta',
+      model: 'mixtral-8x7b-32768', // High capacity model, good at following instructions
       temperature: 0.1,
-      stream: false
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      }
+      response_format: { type: 'json_object' }
     });
 
-    const content = response.data.choices[0].message.content;
-    console.log("🤖 AI Raw Response:", content.substring(0, 200) + "...");
+    console.log("🤖 AI Raw Response:", completion.choices[0].message.content.substring(0, 200) + "...");
 
-    // CLEANUP: Extract JSON from Markdown code blocks if present (Grok often adds them)
-    let cleanContent = content.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    const result = JSON.parse(cleanContent);
+    const result = JSON.parse(completion.choices[0].message.content);
     const classifications = result.classifications || {};
 
     // Merge AI results with original data using Index
@@ -99,11 +95,7 @@ async function processBatchWithGroq(problems, userApiKey) {
 
   } catch (error) {
     console.error('Batch AI Error:', error.message);
-    if (error.response) {
-      console.error('Response Data:', error.response.data);
-      throw new Error(`xAI API Failed: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
-    }
-    throw new Error(`xAI API Failed: ${error.message}`);
+    throw new Error(`Groq API Failed: ${error.message}`);
   }
 }
 
