@@ -13,18 +13,23 @@ const groq = new Groq({
 
 // STANDARD TOPICS LIST (Updated per user request)
 const ALLOWED_TOPICS = [
-  "Arrays & Strings",
-  "Math & Bit Manipulation",
-  "Searching",
-  "Sorting",
-  "Hashing",
-  "Recursion & Backtracking",
-  "Stacks & Queues",
+  "Arrays",
+  "Strings",
   "Linked Lists",
+  "Stacks",
+  "Queues",
   "Trees",
   "Binary Search Trees (BST)",
-  "Heaps & Priority Queues",
-  "Graphs"
+  "Heaps / Priority Queues",
+  "Hashing",
+  "Recursion & Backtracking",
+  "Graphs",
+  "Dynamic Programming",
+  "Greedy Algorithms",
+  "Bit Manipulation",
+  "Sliding Window / Two Pointers",
+  "Trie",
+  "Segment Tree / Fenwick Tree (Advanced)"
 ];
 
 // Helper to map any string to a Standard Topic
@@ -32,18 +37,23 @@ const normalizeTopic = (input) => {
   if (!input) return "Uncategorized";
   const lower = input.toLowerCase();
 
-  if (lower.includes("bst") || lower.includes("binary search tree")) return "Binary Search Trees (BST)";
-  if (lower.includes("heap") || lower.includes("priority")) return "Heaps & Priority Queues";
-  if (lower.includes("bit") || lower.includes("math")) return "Math & Bit Manipulation";
-  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
-  if (lower.includes("tree")) return "Trees";
+  if (lower.includes("segment") || lower.includes("fenwick")) return "Segment Tree / Fenwick Tree (Advanced)";
+  if (lower.includes("trie")) return "Trie";
+  if (lower.includes("sliding") || lower.includes("pointer")) return "Sliding Window / Two Pointers";
+  if (lower.includes("bit")) return "Bit Manipulation";
+  if (lower.includes("greedy")) return "Greedy Algorithms";
+  if (lower.includes("dp") || lower.includes("dynamic")) return "Dynamic Programming";
   if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
-  if (lower.includes("linked list")) return "Linked Lists";
-  if (lower.includes("stack") || lower.includes("queue")) return "Stacks & Queues";
+  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
   if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
-  if (lower.includes("sort")) return "Sorting";
-  if (lower.includes("search") || lower.includes("binary search")) return "Searching";
-  if (lower.includes("string") || lower.includes("array")) return "Arrays & Strings";
+  if (lower.includes("heap") || lower.includes("priority")) return "Heaps / Priority Queues";
+  if (lower.includes("bst") || lower.includes("binary search tree")) return "Binary Search Trees (BST)";
+  if (lower.includes("tree")) return "Trees";
+  if (lower.includes("queue")) return "Queues";
+  if (lower.includes("stack")) return "Stacks";
+  if (lower.includes("linked list")) return "Linked Lists";
+  if (lower.includes("string")) return "Strings";
+  if (lower.includes("array")) return "Arrays";
 
   return "Uncategorized"; // Safer fallback
 };
@@ -151,8 +161,8 @@ async function processBatchWithGroq(problems, userApiKey) {
     I will provide a list of coding problems.
     For EACH problem, you MUST:
     1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
-    2. Identify the Difficulty (Easy, Medium, Hard).
-    3. Find or Generate the LeetCode URL.
+    2. Find or Generate the LeetCode URL.
+    3. Identify the Difficulty (Easy, Medium, Hard).
 
     Rules:
     - You MUST return a JSON object with a "classifications" key.
