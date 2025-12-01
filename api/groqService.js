@@ -210,7 +210,7 @@ function cleanRawData(rawData) {
 
         if (!problemMap.has(cleanName)) {
           problemMap.set(cleanName, {
-            link,
+            link: "", // IGNORE SHEET LINK (User Request: "Find all links yourself")
             sources: new Set(),
             topic: potentialTopic,
             difficulty: difficulty
