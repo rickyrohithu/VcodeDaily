@@ -29,6 +29,7 @@ async function processBatchWithGroq(problems, userApiKey) {
     2. Find or Generate the LeetCode URL.
     3. Identify the Difficulty (Easy, Medium, Hard).
     4. RENAME the problem to its standard LeetCode title (e.g., "Microsoft-46" -> "Permutations", "Two Sum" -> "Two Sum").
+    5. VALIDATION: If the input is NOT a real coding problem (e.g. "chatgpt vs human", "Sheet1", "Done", random text), set "topic" to "Invalid".
 
     Rules:
     - You MUST return a JSON object with a "classifications" key.
@@ -37,6 +38,7 @@ async function processBatchWithGroq(problems, userApiKey) {
     - Do NOT use "Uncategorized". Pick the closest topic from the list.
     - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
     - The "name" field in the output MUST be the clean LeetCode title.
+    - If you cannot find a valid LeetCode/GFG link, set "topic" to "Invalid".
     
     Output JSON format:
     {
@@ -90,6 +92,11 @@ async function processBatchWithGroq(problems, userApiKey) {
       // 4. NAME: Use AI name if provided (to fix "Microsoft-46" -> "Permutations")
       const finalName = aiClass.name || p.name;
 
+      // FILTER: Mark for deletion if Invalid or No Link
+      if (finalTopic === "Invalid" || rawTopic === "Invalid" || !finalLink || !finalLink.startsWith("http")) {
+        return null;
+      }
+
       return {
         ...p,
         name: finalName,
@@ -97,7 +104,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         difficulty: rawDiff,
         link: finalLink
       };
-    });
+    }).filter(p => p !== null); // Remove the invalid ones
 
   } catch (error) {
     console.error('Batch AI Error:', error.message);
