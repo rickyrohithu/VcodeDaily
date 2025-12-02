@@ -37,7 +37,8 @@ async function processBatchWithGroq(problems, userApiKey) {
     - Do NOT skip any problems.
     - Do NOT use "Uncategorized". Pick the closest topic from the list.
     - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
-    - The "name" field in the output MUST be the clean LeetCode title.
+    - The "name" field in the output MUST be the clean LeetCode title (e.g. "Binary Tree Maximum Path Sum").
+    - Do NOT use "LeetCode 124" or "Problem 124" as the name. Use the actual English title.
     - If you cannot find a valid LeetCode/GFG link, set "topic" to "Invalid".
     
     Output JSON format:

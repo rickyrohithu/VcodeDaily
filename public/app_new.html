@@ -558,24 +558,68 @@
         function renderSchedule(schedule) {
             const container = document.createElement('div');
             container.className = 'schedule-container';
-            container.innerHTML = '<h2 style="margin-bottom:1rem;">Your Schedule</h2>';
+            container.style.marginTop = '40px';
+
+            // Header
+            container.innerHTML = `
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h2 style="font-size: 2rem; background: linear-gradient(to right, #a78bfa, #f472b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px;">Your Personalized Schedule</h2>
+                    <p style="color: #9ca3af;">${schedule.length} Days of Consistency</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                    <!-- Days will be injected here -->
+                </div>
+            `;
+
+            const grid = container.querySelector('div:last-child');
+
             schedule.forEach(day => {
-                const dayDiv = document.createElement('div');
-                dayDiv.style.background = 'rgba(255,255,255,0.1)';
-                dayDiv.style.padding = '10px';
-                dayDiv.style.marginBottom = '10px';
-                dayDiv.style.borderRadius = '8px';
-                const probs = day.problems.map(p => `<li><a href="${p.link}" target="_blank" style="color:#60a5fa;">${p.name}</a> <span style="font-size:0.8rem; opacity:0.7;">(${p.difficulty})</span></li>`).join('');
-                dayDiv.innerHTML = `<h3 style="margin:0; font-size:1rem;">Day ${day.day}: ${day.topic}</h3><ul style="padding-left:20px; margin-top:5px;">${probs}</ul>`;
-                container.appendChild(dayDiv);
+                const dayCard = document.createElement('div');
+                dayCard.style.background = 'rgba(255, 255, 255, 0.03)';
+                dayCard.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+                dayCard.style.borderRadius = '16px';
+                dayCard.style.padding = '20px';
+                dayCard.style.backdropFilter = 'blur(10px)';
+                dayCard.style.transition = 'transform 0.2s, box-shadow 0.2s';
+                dayCard.onmouseover = () => { dayCard.style.transform = 'translateY(-5px)'; dayCard.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)'; };
+                dayCard.onmouseout = () => { dayCard.style.transform = 'translateY(0)'; dayCard.style.boxShadow = 'none'; };
+
+                const probsHtml = day.problems.map(p => {
+                    const diffColor = p.difficulty === 'Easy' ? '#4ade80' : p.difficulty === 'Medium' ? '#facc15' : '#f87171';
+                    return `
+                        <li style="margin-bottom: 12px; display: flex; align-items: flex-start; gap: 10px;">
+                            <div style="margin-top: 4px; min-width: 6px; height: 6px; border-radius: 50%; background: ${diffColor}; box-shadow: 0 0 5px ${diffColor};"></div>
+                            <div style="flex: 1;">
+                                <a href="${p.link}" target="_blank" style="color: #e5e7eb; text-decoration: none; font-weight: 500; display: block; line-height: 1.4; transition: color 0.2s;">${p.name}</a>
+                                <span style="font-size: 0.75rem; color: #9ca3af;">${p.difficulty}</span>
+                            </div>
+                        </li>
+                    `;
+                }).join('');
+
+                dayCard.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span style="background: rgba(167, 139, 250, 0.2); color: #a78bfa; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">Day ${day.day}</span>
+                        <span style="font-size: 0.8rem; color: #d1d5db; font-weight: 500;">${day.topic}</span>
+                    </div>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        ${probsHtml}
+                    </ul>
+                `;
+                grid.appendChild(dayCard);
             });
+
             const old = document.querySelector('.schedule-container');
             if (old) old.remove();
+
+            // Append to main container (glass-card)
             document.querySelector('.glass-card').appendChild(container);
-            container.scrollIntoView({ behavior: 'smooth' });
+
+            // Smooth scroll
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     </script>
-    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.30
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.7rem; color: rgba(255,255,255,0.2);">v3.31
     </div>
 </body>
 
