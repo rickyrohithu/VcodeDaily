@@ -11,7 +11,55 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || SERVER_KEY
 });
 
-// ... (ALLOWED_TOPICS and normalizeTopic remain the same) ...
+// STRICT TOPIC LIST (User Requested)
+const ALLOWED_TOPICS = [
+  "Arrays",
+  "Strings",
+  "Hashing",
+  "Linked List",
+  "Stack",
+  "Queue",
+  "Recursion",
+  "Binary Search",
+  "Sorting",
+  "Backtracking",
+  "Trees",
+  "BST",
+  "Heaps",
+  "Graphs",
+  "Greedy",
+  "DP",
+  "Tries",
+  "Bit Manipulation"
+];
+
+// Helper to map any string to a Standard Topic
+const normalizeTopic = (input) => {
+  if (!input) return "Arrays"; // Default fallback
+  const lower = input.toLowerCase();
+
+  // Direct mapping based on keywords
+  if (lower.includes("dp") || lower.includes("dynamic")) return "DP";
+  if (lower.includes("bst") || lower.includes("binary search tree")) return "BST";
+  if (lower.includes("trie")) return "Tries";
+  if (lower.includes("bit")) return "Bit Manipulation";
+  if (lower.includes("greedy")) return "Greedy";
+  if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
+  if (lower.includes("heap") || lower.includes("priority")) return "Heaps";
+  if (lower.includes("tree")) return "Trees";
+  if (lower.includes("backtrack")) return "Backtracking";
+  if (lower.includes("sort")) return "Sorting";
+  if (lower.includes("binary search")) return "Binary Search";
+  if (lower.includes("recursion")) return "Recursion";
+  if (lower.includes("queue")) return "Queue";
+  if (lower.includes("stack")) return "Stack";
+  if (lower.includes("linked list")) return "Linked List";
+  if (lower.includes("hash") || lower.includes("map")) return "Hashing";
+  if (lower.includes("string")) return "Strings";
+  if (lower.includes("array")) return "Arrays";
+
+  return "Arrays"; // Default
+};
 
 // NEW: Process a small batch of problems (called by frontend loop)
 async function processBatchWithGroq(problems, userApiKey) {
@@ -19,33 +67,32 @@ async function processBatchWithGroq(problems, userApiKey) {
   const client = userApiKey ? new Groq({ apiKey: userApiKey }) : groq;
 
   // Use Index as ID to ensure perfect mapping back
-  const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name} | Link: ${p.link}`);
+  const problemDetails = problems.map((p, index) => `ID: ${index} | Name: ${p.name}`);
 
   const systemPrompt = `
-    You are an expert DSA Study Planner.
-    I will provide a list of coding problems.
+    You are a strict LeetCode Problem Validator.
+    I will provide a list of potential problem names extracted from a spreadsheet.
+    
     For EACH problem, you MUST:
-    1. Identify the Topic from this exact list: ${JSON.stringify(ALLOWED_TOPICS)}
-    2. Find or Generate the LeetCode URL.
-    3. Identify the Difficulty (Easy, Medium, Hard).
-    4. RENAME the problem to its standard LeetCode title (e.g., "Microsoft-46" -> "Permutations", "Two Sum" -> "Two Sum").
-    5. VALIDATION: If the input is NOT a real coding problem (e.g. "chatgpt vs human", "Sheet1", "Done", random text), set "topic" to "Invalid".
+    1. Check if this name corresponds to a valid LeetCode problem.
+    2. If NO (it's random text, a header, or not a coding problem), mark it as "Invalid".
+    3. If YES:
+       - Provide the EXACT LeetCode problem name (e.g., "Two Sum").
+       - Generate the direct LeetCode URL (e.g., "https://leetcode.com/problems/two-sum/").
+       - Classify it into ONE of these exact topics: ${JSON.stringify(ALLOWED_TOPICS)}.
+       - Determine the Difficulty (Easy, Medium, Hard).
 
-    Rules:
+    CRITICAL RULES:
     - You MUST return a JSON object with a "classifications" key.
     - The keys inside "classifications" MUST match the IDs provided (0, 1, 2...).
-    - Do NOT skip any problems.
-    - Do NOT use "Uncategorized". Pick the closest topic from the list.
-    - Do NOT return "Unknown" for difficulty. Guess based on the problem name if needed.
-    - The "name" field in the output MUST be the clean LeetCode title (e.g. "Binary Tree Maximum Path Sum").
-    - Do NOT use "LeetCode 124" or "Problem 124" as the name. Use the actual English title.
-    - If you cannot find a valid LeetCode/GFG link, set "topic" to "Invalid".
+    - If a problem is NOT on LeetCode, you MUST mark it as "Invalid".
+    - The "link" field MUST be a valid https://leetcode.com/problems/... URL.
     
     Output JSON format:
     {
       "classifications": {
-        "0": { "name": "Two Sum", "topic": "Arrays", "difficulty": "Medium", "link": "https://leetcode.com/..." },
-        ...
+        "0": { "name": "Two Sum", "topic": "Arrays", "difficulty": "Easy", "link": "https://leetcode.com/problems/two-sum/" },
+        "1": { "topic": "Invalid" }
       }
     }
     `;
@@ -54,9 +101,9 @@ async function processBatchWithGroq(problems, userApiKey) {
     const completion = await client.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Classify these problems:\n${JSON.stringify(problemDetails)}` }
+        { role: 'user', content: `Validate and classify these:\n${JSON.stringify(problemDetails)}` }
       ],
-      model: 'llama-3.1-8b-instant', // Switch to smaller, faster model to bypass rate limits
+      model: 'llama-3.1-8b-instant',
       temperature: 0.1,
       response_format: { type: 'json_object' }
     });
@@ -70,32 +117,26 @@ async function processBatchWithGroq(problems, userApiKey) {
     return problems.map((p, index) => {
       const aiClass = classifications[index.toString()] || {};
 
-      // 1. TOPIC: Handle "None", "Unknown", or missing
-      let rawTopic = aiClass.topic;
-      if (!rawTopic || rawTopic === "None" || rawTopic === "Unknown") {
-        rawTopic = p.topic || "Uncategorized";
+      // 1. VALIDATION CHECK
+      if (!aiClass.topic || aiClass.topic === "Invalid" || aiClass.topic === "Unknown") {
+        return null; // Omit this problem
       }
-      const finalTopic = normalizeTopic(rawTopic);
 
-      // 2. DIFFICULTY: Handle invalid difficulty
+      // 2. TOPIC
+      const finalTopic = normalizeTopic(aiClass.topic);
+
+      // 3. DIFFICULTY
       let rawDiff = aiClass.difficulty;
-      if (!rawDiff || !['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
-        rawDiff = p.difficulty || "Medium";
-      }
-      // Final fallback if still invalid
       if (!['Easy', 'Medium', 'Hard'].includes(rawDiff)) {
         rawDiff = "Medium";
       }
 
-      // 3. LINK: Use AI link if original is missing
-      const finalLink = (p.link && p.link.length > 5) ? p.link : (aiClass.link || "");
-
-      // 4. NAME: Use AI name if provided (to fix "Microsoft-46" -> "Permutations")
+      // 4. LINK & NAME (Strictly from AI)
+      const finalLink = aiClass.link;
       const finalName = aiClass.name || p.name;
 
-      // FILTER: Mark for deletion if Invalid or No Link
-      if (finalTopic === "Invalid" || rawTopic === "Invalid" || !finalLink || !finalLink.startsWith("http")) {
-        return null;
+      if (!finalLink || !finalLink.includes("leetcode.com")) {
+        return null; // Omit if no valid LeetCode link generated
       }
 
       return {
@@ -103,7 +144,7 @@ async function processBatchWithGroq(problems, userApiKey) {
         name: finalName,
         topic: finalTopic,
         difficulty: rawDiff,
-        link: finalLink
+        link: finalLink // Overwrite with LeetCode link
       };
     }).filter(p => p !== null); // Remove the invalid ones
 
@@ -112,53 +153,6 @@ async function processBatchWithGroq(problems, userApiKey) {
     throw new Error(`Groq API Failed: ${error.message}`);
   }
 }
-
-// STANDARD TOPICS LIST (Updated per user request)
-const ALLOWED_TOPICS = [
-  "Arrays",
-  "Strings",
-  "Linked Lists",
-  "Stacks",
-  "Queues",
-  "Trees",
-  "Binary Search Trees (BST)",
-  "Heaps / Priority Queues",
-  "Hashing",
-  "Recursion & Backtracking",
-  "Graphs",
-  "Dynamic Programming",
-  "Greedy Algorithms",
-  "Bit Manipulation",
-  "Sliding Window / Two Pointers",
-  "Trie",
-  "Segment Tree / Fenwick Tree (Advanced)"
-];
-
-// Helper to map any string to a Standard Topic
-const normalizeTopic = (input) => {
-  if (!input) return "Uncategorized";
-  const lower = input.toLowerCase();
-
-  if (lower.includes("segment") || lower.includes("fenwick")) return "Segment Tree / Fenwick Tree (Advanced)";
-  if (lower.includes("trie")) return "Trie";
-  if (lower.includes("sliding") || lower.includes("pointer")) return "Sliding Window / Two Pointers";
-  if (lower.includes("bit")) return "Bit Manipulation";
-  if (lower.includes("greedy")) return "Greedy Algorithms";
-  if (lower.includes("dp") || lower.includes("dynamic")) return "Dynamic Programming";
-  if (lower.includes("graph") || lower.includes("bfs") || lower.includes("dfs")) return "Graphs";
-  if (lower.includes("recursion") || lower.includes("backtrack")) return "Recursion & Backtracking";
-  if (lower.includes("hash") || lower.includes("map") || lower.includes("set")) return "Hashing";
-  if (lower.includes("heap") || lower.includes("priority")) return "Heaps / Priority Queues";
-  if (lower.includes("bst") || lower.includes("binary search tree")) return "Binary Search Trees (BST)";
-  if (lower.includes("tree")) return "Trees";
-  if (lower.includes("queue")) return "Queues";
-  if (lower.includes("stack")) return "Stacks";
-  if (lower.includes("linked list")) return "Linked Lists";
-  if (lower.includes("string")) return "Strings";
-  if (lower.includes("array")) return "Arrays";
-
-  return "Uncategorized"; // Safer fallback
-};
 
 function cleanRawData(rawData) {
   const problemMap = new Map(); // Name -> { link, sources: Set }
@@ -173,11 +167,9 @@ function cleanRawData(rawData) {
       // Skip completely empty rows
       if (row.length === 0 || row.every(c => !c || c.toString().trim() === '')) return;
 
-      // STRATEGY: Grab EVERYTHING.
-      // 1. Look for a Link
-      let link = row.find(v => v && typeof v === 'string' && v.includes('http')) || '';
+      // STRATEGY: Just get the Name. We don't care about the sheet link anymore as per user request.
 
-      // 2. Look for a Name
+      // 1. Look for a Name
       // Priority: Longest string that isn't a link
       const textCandidates = row.filter(v =>
         v &&
@@ -189,40 +181,15 @@ function cleanRawData(rawData) {
       textCandidates.sort((a, b) => b.length - a.length);
       let name = textCandidates[0];
 
-      // Fallback: Extract from link
-      if (!name && link) {
-        try {
-          const parts = link.split('/').filter(p => p && p.trim() !== '');
-          name = parts[parts.length - 1].replace(/-/g, ' ');
-        } catch (e) { }
-      }
-
-      // Fallback: Use "Problem Row X"
-      if (!name) {
-        name = `Problem Row ${rowIndex + 1}`;
-      }
-
-      // 3. Difficulty
-      const difficulty = row.find(v => v && typeof v === 'string' && v.match(/^(Easy|Medium|Hard)$/i)) || "Medium";
-
-      // 4. Topic
-      let topic = "Uncategorized";
-      for (const t of textCandidates) {
-        if (t === name) continue;
-        const norm = normalizeTopic(t);
-        if (norm !== "Uncategorized") {
-          topic = norm;
-          break;
-        }
-      }
+      // Fallback: Use "Problem Row X" if absolutely nothing found (unlikely to be valid but AI will filter)
+      if (!name) return;
 
       const cleanName = name.trim();
+      if (cleanName.length < 3) return; // Too short to be a real name
+
       if (!problemMap.has(cleanName)) {
         problemMap.set(cleanName, {
-          link: link || "", // Keep existing link if found
           sources: new Set(),
-          topic: topic,
-          difficulty: difficulty
         });
       }
       problemMap.get(cleanName).sources.add(cleanSource);
@@ -237,10 +204,10 @@ function cleanRawData(rawData) {
     const data = problemMap.get(name);
     return {
       name: name,
-      link: data.link,
+      link: "", // We intentionally clear this so AI MUST generate it
       source: Array.from(data.sources).join(', '),
-      topic: normalizeTopic(data.topic),
-      difficulty: data.difficulty
+      topic: "Uncategorized",
+      difficulty: "Medium"
     };
   });
 }
@@ -248,9 +215,7 @@ function cleanRawData(rawData) {
 async function processWithGroq(rawData) {
   // DEPRECATED: Use cleanRawData + client-side batching instead
   const problems = cleanRawData(rawData);
-  // ... (rest of logic if needed, but we are moving to batching)
   return { summary: {}, problems };
 }
 
-// NEW: Process a small batch of problems (called by frontend loop)
 module.exports = { processWithGroq, processBatchWithGroq, cleanRawData };
