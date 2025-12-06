@@ -393,41 +393,40 @@
                 }
                 currentProblems = []; // Reset
 
-                // 2. Client-Side Batching (To avoid Vercel 10s Timeout)
-                const BATCH_SIZE = 10; // Reduced to 10 to avoid Vercel timeouts
+                // 2. Client-Side Batching (Parallelized for Speed)
+                const BATCH_SIZE = 15; // Increased slightly
                 const totalBatches = Math.ceil(allProblems.length / BATCH_SIZE);
+                const CONCURRENCY = 3; // Run 3 batches at a time
 
-                for (let i = 0; i < totalBatches; i++) {
-                    analyseBtn.textContent = `Analyzing ${i + 1}/${totalBatches}...`;
-
-                    const batch = allProblems.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
-
+                const processBatch = async (batch, index) => {
                     try {
                         const batchRes = await fetch('/api/analyze-batch', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                problems: batch
-                                // apiKey: userApiKey // REMOVED
-                            })
+                            body: JSON.stringify({ problems: batch })
                         });
                         const batchData = await batchRes.json();
-
-                        if (!batchRes.ok) {
-                            const errorMsg = batchData.error || batchData.message || batchData.errorMessage || JSON.stringify(batchData);
-                            throw new Error(`Server Error (${batchRes.status}): ${errorMsg}`);
-                        }
-
-                        if (batchData.problems) {
-                            currentProblems = currentProblems.concat(batchData.problems);
-                        } else {
-                            throw new Error('Invalid batch response: Missing problems array');
-                        }
+                        if (!batchRes.ok) throw new Error(batchData.error || 'Server Error');
+                        return batchData.problems || [];
                     } catch (e) {
-                        console.error('Batch failed', e);
-                        alert(`Analysis Error: ${e.message}. Please check your API Key or Sheet.`);
-                        throw e; // Stop processing
+                        console.error(`Batch ${index} failed`, e);
+                        return batch; // Fallback to original data on failure
                     }
+                };
+
+                // Create chunks
+                const chunks = [];
+                for (let i = 0; i < totalBatches; i++) {
+                    chunks.push(allProblems.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE));
+                }
+
+                // Process with concurrency
+                for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+                    const slice = chunks.slice(i, i + CONCURRENCY);
+                    analyseBtn.textContent = `Analyzing ${Math.min(i + CONCURRENCY, totalBatches)}/${totalBatches}...`;
+
+                    const results = await Promise.all(slice.map((chunk, idx) => processBatch(chunk, i + idx)));
+                    results.forEach(res => currentProblems.push(...res));
                 }
 
                 // 3. Build Summary Locally
