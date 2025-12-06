@@ -219,7 +219,7 @@ function cleanRawData(rawData) {
       const cleanName = name.trim();
       if (!problemMap.has(cleanName)) {
         problemMap.set(cleanName, {
-          link: "", // Force AI to find link
+          link: link || "", // Keep existing link if found
           sources: new Set(),
           topic: topic,
           difficulty: difficulty
